@@ -29,7 +29,8 @@ install: .state/venv ## Install Python dependencies
 
 run: ## Run the vessel spoofing detection script
 	. $(VENV_DIR)/bin/activate && \
-	python lab1_multiproc/vessel_spoofing_detection.py
+	cd lab1 && \
+	python test_hpc.py
 
 create_test_file: ## Create a test file with first 5000 lines
 	head -n 5000 aisdk-test.csv > aisdk-test.csv
