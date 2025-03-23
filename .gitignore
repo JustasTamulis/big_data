@@ -1,0 +1,4 @@
+__pycache__/
+
+lab1_multiproc/data/*
+lab1_multiproc/output/*

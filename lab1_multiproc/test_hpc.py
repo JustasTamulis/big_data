@@ -11,4 +11,4 @@ result = df.groupby('Type of mobile').\
     }).reset_index()
 
 # Save to CSV
-result.to_csv('mobile_dimensions.csv', index=False)
+result.to_csv('output/mobile_dimensions.csv', index=False)
