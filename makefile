@@ -1,5 +1,5 @@
 PROJECT=bigdata
-VERSION=3.12.7
+VERSION=3.10
 VENV_DIR=.venv
 
 help: ## Show this help

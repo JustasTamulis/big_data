@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Load data
-df = pd.read_csv('aisdk-small.csv')
+df = pd.read_csv('data/aisdk-small.csv')
 
 # Group by mobile type and calculate mean width/height
 result = df.groupby('Type of mobile').\
