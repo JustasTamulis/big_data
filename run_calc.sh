@@ -7,4 +7,4 @@
 # SBATCH --ntasks=1
 # SBATCH --cpus-per-task=1
 # SBATCH --time=6-0
-python3 ~/test_hpc.py
+python3 ./lab1/test_hpc.py
