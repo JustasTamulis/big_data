@@ -17,5 +17,7 @@ echo "SLURM_NTASKS: $SLURM_NTASKS"
 echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
 echo "SLURM_JOB_CPUS_PER_NODE: $SLURM_JOB_CPUS_PER_NODE"
 echo "Current working directory: $(pwd)"
-pip3 install -r requirements.txt
+# pip3 install -r requirements.txt
+pip3 install pandas
+cd lab1
 python3 lab1/test_hpc.py
