@@ -11,5 +11,7 @@ echo abcd
 echo $PATH
 echo $SLURM_JOB_ID
 echo $SLURM_JOB_NAME
-source .venv/bin/activate
-python lab1/test_hpc.py
+pwd
+ls
+module load python-3.8.5
+python3 lab1/test_hpc.py
