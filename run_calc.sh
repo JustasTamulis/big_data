@@ -8,10 +8,14 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=6-0
 echo abcd
-echo $PATH
-echo $SLURM_JOB_ID
-echo $SLURM_JOB_NAME
-pwd
-ls
-module load python-3.8.5
+echo "PATH: $PATH"
+echo "PYTHONPATH: $PYTHONPATH"
+echo "SLURM_JOB_NAME: $SLURM_JOB_NAME"
+echo "SLURM_JOB_ID: $SLURM_JOB_ID"
+echo "SLURM_JOB_NODELIST: $SLURM_JOB_NODELIST"
+echo "SLURM_NTASKS: $SLURM_NTASKS"
+echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
+echo "SLURM_JOB_CPUS_PER_NODE: $SLURM_JOB_CPUS_PER_NODE"
+echo "Current working directory: $(pwd)"
+pip3 install -r requirements.txt
 python3 lab1/test_hpc.py
