@@ -11,3 +11,5 @@ echo abcd
 echo $PATH
 echo $SLURM_JOB_ID
 echo $SLURM_JOB_NAME
+source .venv/bin/activate
+python lab1/test_hpc.py
