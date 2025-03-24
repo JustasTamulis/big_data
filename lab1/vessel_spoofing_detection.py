@@ -138,6 +138,7 @@ def visualize_anomaly_clusters(middle_points, anomaly_clusters):
 
 def process_parallel(df, num_processes, chunk_size=10):
     """Process vessel data in parallel"""
+    print("NUM OF PROCESSES: ", num_processes)
     vessel_groups = (group for _, group in df.groupby('MMSI'))
     with mp.Pool(processes=num_processes) as pool:
         results = pool.imap_unordered(detect_vessel_anomalies, vessel_groups, chunksize=chunk_size)
@@ -154,7 +155,8 @@ if __name__ == '__main__':
     # print("Distance from Vilnius to Kaunas: ", calculate_distance(54.687157, 25.279652, 54.898521, 23.903597))
 
     # Load and prepare data
-    file_path = 'data/aisdk-small.csv'
+    file_path = 'data/aisdk-2025-02-09.csv'
+    #file_path = 'data/aisdk-small.csv'
     print("\nLoading data...")
     df = load_data(file_path)
     
