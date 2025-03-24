@@ -35,6 +35,10 @@ run: ## Run the vessel spoofing detection script
 create_test_file: ## Create a test file with first 5000 lines
 	head -n 5000 aisdk-test.csv > aisdk-test.csv
 
+hpc_github_setup: 
+	eval "$(ssh-agent -s)"
+	ssh-add ~/.ssh/github
+
 .PHONY: help clean venv activate install run create_test_file
 
 # Command to run in the cluster

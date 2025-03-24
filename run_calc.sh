@@ -7,4 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=6-0
-make run
+echo abcd
+echo $PATH
+echo $SLURM_JOB_ID
+echo $SLURM_JOB_NAME
