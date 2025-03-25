@@ -20,6 +20,9 @@ EXCLUDED_STATUSES = [
 ]
 
 
+# Spoofing detection
+
+
 def calculate_distance(pos1, pos2):  # -> kilometers
     """Calculate the great circle distance between two points on Earth."""
     lat1, lon1 = pos1
@@ -46,28 +49,73 @@ def time_distance(batch1, batch2):
     start2, end2, _ = batch2
 
     # Check if one batch starts within TIME_THRESHOLD minutes of the other batch ending
-    if (start1 - end2).total_seconds() / 60 <= TIME_THRESHOLD or (
-        start2 - end1
-    ).total_seconds() / 60 <= TIME_THRESHOLD:
+    if (start1 - end2).astype("timedelta64[s]").astype(
+        float
+    ) / 60 <= TIME_THRESHOLD or (start2 - end1).astype("timedelta64[s]").astype(
+        float
+    ) / 60 <= TIME_THRESHOLD:
         return 0
     else:
         return 1000  # Large value to separate in clustering
 
 
-def spatio_temporal_distance(batch1, batch2):
+def process_anomaly_batch(current_batch, vessel_data):
     """
-    Custom distance function that considers both spatial and temporal distance between batches
+    Process a batch of anomalies to calculate its time window and middle point.
 
     Args:
-        batch1, batch2: tuples of (start_time, end_time, middle_point)
+        current_batch: List of anomaly tuples (index, timestamp, lat, lon, speed)
+        vessel_data: DataFrame containing vessel data
+
+    Returns:
+        tuple: (start_time, end_time, middle_point) or None if batch is invalid
     """
-    _, _, middle_point1 = batch1
-    _, _, middle_point2 = batch2
+    if len(current_batch) <= 1:  # Only process batches with multiple anomalies
+        return None
 
-    spatial_dist = calculate_distance(middle_point1, middle_point2)
-    temp_dist = time_distance(batch1, batch2)
+    start_time = current_batch[0][1]
+    end_time = current_batch[-1][1]
 
-    return spatial_dist if temp_dist == 0 else float("inf")
+    # Find normal points during this time window
+    normal_points = vessel_data[
+        (vessel_data["Timestamp"] >= start_time)
+        & (vessel_data["Timestamp"] <= end_time)
+    ]
+
+    # Exclude the anomalous points
+    anomaly_indices = [a[0] for a in current_batch]
+    normal_points = normal_points.iloc[~normal_points.index.isin(anomaly_indices)]
+
+    # Calculate middle point from normal points (or anomalies if no normal points)
+    if len(normal_points) > 0:
+        middle_lat = normal_points["Latitude"].median()
+        middle_lon = normal_points["Longitude"].median()
+    else:
+        # If no normal points in window, use median of anomalies
+        middle_lat = np.median([a[2] for a in current_batch])
+        middle_lon = np.median([a[3] for a in current_batch])
+
+    middle_point = (middle_lat, middle_lon)
+    return (start_time, end_time, middle_point)
+
+
+def calculate_distance_matrix(lat1, lon1, lat2, lon2):
+    """
+    Vectorized calculation of great circle distances between sets of coordinates
+
+    Args:
+        lat1, lon1: arrays of latitude and longitude for first points
+        lat2, lon2: arrays of latitude and longitude for second points
+
+    Returns:
+        Array of distances in kilometers
+    """
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    return EARTH_RADIUS * c
 
 
 def detect_vessel_anomalies(vessel_data):
@@ -94,121 +142,89 @@ def detect_vessel_anomalies(vessel_data):
     if point_count < 2:
         return mmsi, point_count, 0, False, []
 
-    vessel_data = vessel_data.sort_values("Timestamp")
-    anomalies = []
-    max_speed = 0
+    # Sort by timestamp and drop duplicates
+    vessel_data = (
+        vessel_data.sort_values("Timestamp")
+        .drop_duplicates("Timestamp")
+        .reset_index(drop=True)
+    )
 
-    for i in range(1, len(vessel_data)):
-        prev_row = vessel_data.iloc[i - 1]
-        curr_row = vessel_data.iloc[i]
+    # Extract data to numpy arrays for faster processing
+    timestamps = vessel_data["Timestamp"].values
+    lats = vessel_data["Latitude"].values
+    lons = vessel_data["Longitude"].values
 
-        # Calculate time difference
-        time_diff = (
-            curr_row["Timestamp"] - prev_row["Timestamp"]
-        ).total_seconds() / 3600  # in hours
+    # Create shifted arrays (exclude first row as it won't have a previous value)
+    prev_lats = np.roll(lats, 1)
+    prev_lons = np.roll(lons, 1)
+    prev_timestamps = np.roll(timestamps, 1)
 
-        if time_diff > 0:
-            # Calculate distance and speed
-            distance = calculate_distance(
-                (prev_row["Latitude"], prev_row["Longitude"]),
-                (curr_row["Latitude"], curr_row["Longitude"]),
-            )
-            speed = distance / time_diff  # km/h
+    # Set first element to NaN to avoid calculating with wrapped values
+    prev_lats[0] = np.nan
+    prev_lons[0] = np.nan
+    prev_timestamps[0] = np.datetime64("NaT")
 
-            max_speed = max(max_speed, speed)
+    # Calculate time differences in hours (vectorized)
+    time_diffs = (timestamps - prev_timestamps).astype("timedelta64[s]").astype(
+        float
+    ) / 3600
 
-            # Check for anomalous speed
-            if speed > SPEED_THRESHOLD:
-                anomalies.append(
-                    (
-                        i,
-                        curr_row["Timestamp"],
-                        curr_row["Latitude"],
-                        curr_row["Longitude"],
-                        speed,
-                    )
-                )
+    # Calculate distances (vectorized)
+    distances = calculate_distance_matrix(prev_lats, prev_lons, lats, lons)
 
-    # Group anomalies into time batches
+    # Calculate speeds
+    speeds = np.divide(
+        distances, time_diffs, out=np.zeros_like(distances), where=time_diffs > 0
+    )
+
+    # Find maximum speed (ignoring NaN values)
+    max_speed = np.nanmax(speeds) if not np.isnan(speeds).all() else 0
+
+    # Find indices of anomalous speeds
+    anomaly_indices = np.where(speeds > SPEED_THRESHOLD)[0]
+
+    if len(anomaly_indices) == 0:
+        return mmsi, point_count, max_speed, False, []
+
+    # Create anomalies list
+    anomalies = [
+        (int(i), timestamps[i], lats[i], lons[i], speeds[i]) for i in anomaly_indices
+    ]
+
+    # Group anomalies into time batches - this part is harder to vectorize
+    # due to its sequential nature
     anomaly_batches = []
     if anomalies:
         current_batch = [anomalies[0]]
         for i in range(1, len(anomalies)):
             prev_time = current_batch[-1][1]
             curr_time = anomalies[i][1]
-            time_diff = (curr_time - prev_time).total_seconds() / 60  # in minutes
+            time_diff = (curr_time - prev_time).astype("timedelta64[s]").astype(
+                float
+            ) / 60  # in minutes
 
             if time_diff <= TIME_THRESHOLD:
                 # Add to current batch
                 current_batch.append(anomalies[i])
             else:
-                # Start a new batch if the previous one has more than 1 anomaly
-                if (
-                    len(current_batch) > 1
-                ):  # Only consider batches with multiple anomalies
-                    start_time = current_batch[0][1]
-                    end_time = current_batch[-1][1]
-
-                    # Find normal points during this time window
-                    normal_points = vessel_data[
-                        (vessel_data["Timestamp"] >= start_time)
-                        & (vessel_data["Timestamp"] <= end_time)
-                    ]
-
-                    # Exclude the anomalous points
-                    anomaly_indices = [a[0] for a in current_batch]
-                    normal_points = normal_points.iloc[
-                        ~normal_points.index.isin(anomaly_indices)
-                    ]
-
-                    # Calculate middle point from normal points (or anomalies if no normal points)
-                    if len(normal_points) > 0:
-                        middle_lat = normal_points["Latitude"].median()
-                        middle_lon = normal_points["Longitude"].median()
-                    else:
-                        # If no normal points in window, use median of anomalies
-                        middle_lat = np.median([a[2] for a in current_batch])
-                        middle_lon = np.median([a[3] for a in current_batch])
-
-                    middle_point = (middle_lat, middle_lon)
-                    anomaly_batches.append((start_time, end_time, middle_point))
-
+                # Process current batch and start a new one
+                batch_result = process_anomaly_batch(current_batch, vessel_data)
+                if batch_result:
+                    anomaly_batches.append(batch_result)
                 current_batch = [anomalies[i]]
 
-        # Add the last batch if it has more than 1 anomaly
-        if len(current_batch) > 1:
-            start_time = current_batch[0][1]
-            end_time = current_batch[-1][1]
-
-            # Find normal points during this time window
-            normal_points = vessel_data[
-                (vessel_data["Timestamp"] >= start_time)
-                & (vessel_data["Timestamp"] <= end_time)
-            ]
-
-            # Exclude the anomalous points
-            anomaly_indices = [a[0] for a in current_batch]
-            normal_points = normal_points.iloc[
-                ~normal_points.index.isin(anomaly_indices)
-            ]
-
-            # Calculate middle point from normal points
-            if len(normal_points) > 0:
-                middle_lat = normal_points["Latitude"].median()
-                middle_lon = normal_points["Longitude"].median()
-            else:
-                # If no normal points in window, use median of anomalies
-                middle_lat = np.median([a[2] for a in current_batch])
-                middle_lon = np.median([a[3] for a in current_batch])
-
-            middle_point = (middle_lat, middle_lon)
-            anomaly_batches.append((start_time, end_time, middle_point))
+        # Process the last batch
+        batch_result = process_anomaly_batch(current_batch, vessel_data)
+        if batch_result:
+            anomaly_batches.append(batch_result)
 
     # Ship is anomalous if it has at least one batch
     is_anomaly = len(anomaly_batches) > 0
 
     return mmsi, point_count, max_speed, is_anomaly, anomaly_batches
 
+
+# Process data in chunks
 
 def process_chunk(chunk):
     """Process a chunk of vessel data"""
@@ -226,7 +242,6 @@ def process_chunk(chunk):
     for mmsi, group in chunk.groupby("MMSI"):
         results.append(detect_vessel_anomalies(group))
     return results
-
 
 @tw.timeit
 def process_file_in_chunks(file_path, chunk_size=10000, num_processes=None):
@@ -261,12 +276,12 @@ def process_file_in_chunks(file_path, chunk_size=10000, num_processes=None):
 
 if __name__ == "__main__":
     # Load and prepare data
-    file_path = "data/aisdk-test.csv"
-    # file_path = 'data/aisdk-2025-02-09.csv'
+    # file_path = 'data/aisdk-test.csv'
+    file_path = "data/aisdk-2025-02-09.csv"
     print("\nProcessing data in chunks...")
 
     # Process the file in chunks
-    results = process_file_in_chunks(file_path, chunk_size=100000, num_processes=16)
+    results = process_file_in_chunks(file_path, chunk_size=100000)
 
     # Convert results to DataFrame
     results_df = pd.DataFrame(
