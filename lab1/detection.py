@@ -1,13 +1,11 @@
+# vessel spoofing detection
+ 
 import timeit_wrapper as tw
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from sklearn.cluster import DBSCAN
-import folium
-from folium import plugins
 import multiprocessing as mp
-import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
+
 
 # Constants
 SPEED_THRESHOLD = 600 * 1.5  # Record speed in km/h with 50% margin
@@ -16,7 +14,7 @@ ANOMALY_CLUSTER_RADIUS = 20  # Radius in km to check for vessel clusters
 EARTH_RADIUS = 6371  # Earth's radius in kilometers
 EXCLUDED_STATUSES = ['moored', 'at anchor', 'Constrained by her draught', 'Restricted maneuverability']
 
-# JT - checked
+
 def calculate_distance(pos1, pos2): # -> kilometers
     """Calculate the great circle distance between two points on Earth."""
     lat1, lon1 = pos1
@@ -63,42 +61,6 @@ def spatio_temporal_distance(batch1, batch2):
     
     return spatial_dist if temp_dist == 0 else float('inf')
 
-def find_point_clusters(batches, cluster_radius=ANOMALY_CLUSTER_RADIUS):
-    """
-    Find clusters of anomaly batches using DBSCAN with combined space-time distance.
-    
-    Args:
-        batches: List of (start_time, end_time, middle_point) tuples
-        
-    Returns:
-        List of cluster labels for each input batch (-1 indicates noise points)
-    """
-    if len(batches) < 2:
-        return [-1] * len(batches)
-    
-    # Create a distance matrix using the custom distance function
-    n = len(batches)
-    distance_matrix = np.zeros((n, n))
-    for i in range(n):
-        for j in range(i+1, n):
-            dist = spatio_temporal_distance(batches[i], batches[j])
-            distance_matrix[i, j] = distance_matrix[j, i] = dist
-    
-    # Run DBSCAN with precomputed distance matrix
-    clustering = DBSCAN(
-        eps=cluster_radius,
-        min_samples=2,
-        metric='precomputed'
-    ).fit(distance_matrix)
-    
-    return clustering.labels_.tolist()
-
-def calculate_center_point(coords):
-    """
-    Calculate the center point of a list of coordinates.
-    """
-    return np.mean(coords, axis=0)
-
 def detect_vessel_anomalies(vessel_data):
     """
     Detect potential GPS spoofing for a single vessel with time-based analysis
@@ -108,7 +70,15 @@ def detect_vessel_anomalies(vessel_data):
         
     Returns:
         tuple: (MMSI, point_count, max_speed, is_anomaly, anomaly_batches)
-        where anomaly_batches is a list of (start_time, end_time, middle_point) tuples
+        where:
+            - MMSI: The unique identifier of the vessel.
+            - point_count: The number of data points for the vessel.
+            - max_speed: The maximum speed recorded for the vessel (in km/h).
+            - is_anomaly: A boolean indicating if the vessel has anomalies.
+            - anomaly_batches: A list of tuples, where each tuple contains:
+                - start_time (datetime): The start time of the anomaly batch.
+                - end_time (datetime): The end time of the anomaly batch.
+                - middle_point (tuple): The geographical center point (latitude, longitude) of the anomaly batch.
     """
     mmsi = vessel_data.iloc[0]['MMSI']
     point_count = len(vessel_data)
@@ -220,73 +190,6 @@ def detect_vessel_anomalies(vessel_data):
     
     return mmsi, point_count, max_speed, is_anomaly, anomaly_batches
 
-def visualize_anomaly_clusters(anomaly_data, cluster_labels):
-    """
-    Visualize anomaly clusters on a map with points, vessel IDs, and timestamps.
-    
-    Args:
-        anomaly_data: DataFrame with columns 'mmsi', 'start_time', 'end_time', 'middle_point'
-        cluster_labels: List of cluster assignments
-    """
-    m = folium.Map(location=[54.687157, 25.279652], zoom_start=6)
-    
-    # Generate random colors for each cluster
-    max_cluster_id = max(cluster_labels) if cluster_labels else -1
-    colors = ['#%06x' % random.randint(0, 0xFFFFFF) for _ in range(max_cluster_id + 2)]  # +2 for -1 and safety
-    
-    # Create feature groups
-    clusters_layer = folium.FeatureGroup(name='Anomaly Clusters')
-    points_layer = folium.FeatureGroup(name='Anomaly Points')
-    
-    # Group points by cluster
-    cluster_points = {}
-    for i, (mmsi, start_time, end_time, middle_point, label) in enumerate(zip(
-        anomaly_data['mmsi'], 
-        anomaly_data['start_time'], 
-        anomaly_data['end_time'], 
-        anomaly_data['middle_point'], 
-        cluster_labels
-    )):
-        if label not in cluster_points:
-            cluster_points[label] = []
-        
-        cluster_points[label].append((mmsi, start_time, end_time, middle_point))
-    
-    # Plot each cluster
-    for cluster_id, points in cluster_points.items():
-        if cluster_id >= 0:  # Skip noise points marked as -1
-            # Get center point of cluster
-            cluster_coords = [p[3] for p in points]
-            center = calculate_center_point(cluster_coords)
-            
-            # Add cluster circle
-            folium.Circle(
-                location=center,
-                radius=ANOMALY_CLUSTER_RADIUS * 1000,  # Convert km to meters
-                color=colors[cluster_id],
-                fill=True,
-                fill_opacity=0.2,
-                popup=f'Cluster {cluster_id}'
-            ).add_to(clusters_layer)
-            
-            # Add individual points
-            for mmsi, start_time, end_time, (lat, lon) in points:
-                folium.CircleMarker(
-                    location=[lat, lon],
-                    radius=5,
-                    color=colors[cluster_id],
-                    fill=True,
-                    fill_opacity=0.7,
-                    popup=f'MMSI: {mmsi}<br>Start: {start_time.strftime("%Y-%m-%d %H:%M:%S")}<br>End: {end_time.strftime("%Y-%m-%d %H:%M:%S")}'
-                ).add_to(points_layer)
-    
-    # Add the layers to the map
-    clusters_layer.add_to(m)
-    points_layer.add_to(m)
-    
-    # Add layer control
-    folium.LayerControl().add_to(m)
-    m.save('output/anomaly_clusters.html')
 
 def process_chunk(chunk):
     """Process a chunk of vessel data"""
@@ -303,6 +206,7 @@ def process_chunk(chunk):
         results.append(detect_vessel_anomalies(group))
     return results
 
+@tw.timeit
 def process_file_in_chunks(file_path, chunk_size=10000, num_processes=None):
     """Process the CSV file in chunks using multiple processes"""
     if num_processes is None:
@@ -332,8 +236,8 @@ def process_file_in_chunks(file_path, chunk_size=10000, num_processes=None):
 
 if __name__ == '__main__':
     # Load and prepare data
-    # file_path = 'data/aisdk-test.csv'
-    file_path = 'data/aisdk-2025-02-09.csv'
+    file_path = 'data/aisdk-test.csv'
+    # file_path = 'data/aisdk-2025-02-09.csv'
     print("\nProcessing data in chunks...")
     
     # Process the file in chunks
@@ -342,39 +246,10 @@ if __name__ == '__main__':
     # Convert results to DataFrame
     results_df = pd.DataFrame(results, columns=['MMSI', 'point_count', 'max_speed', 'is_anomaly', 'anomaly_batches'])
     
-    # Filter anomalous vessels
-    anomaly_vessels = results_df[results_df['is_anomaly'] == True].copy()
+    results_df.to_csv('output/results.csv', index=False)
     
-    # Prepare data for clustering
-    anomaly_data = []
-    for _, row in anomaly_vessels.iterrows():
-        for start_time, end_time, middle_point in row['anomaly_batches']:
-            anomaly_data.append({
-                'mmsi': row['MMSI'],
-                'start_time': start_time,
-                'end_time': end_time,
-                'middle_point': middle_point
-            })
-    
-    anomaly_df = pd.DataFrame(anomaly_data)
-    
-    if len(anomaly_df) > 0:
-        # Prepare batches for clustering
-        batches = [(row['start_time'], row['end_time'], row['middle_point']) 
-                   for _, row in anomaly_df.iterrows()]
-        
-        # Cluster anomalies using spatio-temporal distance
-        anomaly_clusters = find_point_clusters(batches)
-        
-        # Add cluster assignments back to anomaly data
-        anomaly_df['cluster'] = anomaly_clusters
-        
-        # Visualize anomalies with time component
-        visualize_anomaly_clusters(anomaly_df, anomaly_clusters)
-        
-        # Print results
-        print(f"\nFound {max(anomaly_clusters) + 1 if anomaly_clusters and max(anomaly_clusters) >= 0 else 0} clusters of anomalies")
-        print(f"Found {len(anomaly_vessels)} vessels with potential GPS spoofing")
-        print(anomaly_vessels[['MMSI', 'point_count', 'max_speed']])
+    anomalies = int(results_df['is_anomaly'].sum())
+    if anomalies > 0:
+        print("Found", anomalies, "vessels with potential GPS spoofing")
     else:
         print("No anomalies detected")

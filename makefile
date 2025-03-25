@@ -33,7 +33,7 @@ run: ## Run the vessel spoofing detection script
 	python test_hpc.py
 
 create_test_file: ## Create a test file with first 5000 lines
-	head -n 5000 aisdk-test.csv > aisdk-test.csv
+	head -n 1000000 data/aisdk-2025-02-09.csv > data/aisdk-test.csv
 
 hpc_github_setup: 
 	@eval "$$(ssh-agent -s)"

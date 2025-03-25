@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import time
 import psutil
 import multiprocessing as mp
-from vessel_spoofing_detection import load_data, detect_vessel_anomalies
+from detection import load_data, detect_vessel_anomalies
 
 def measure_time_and_resources(func):
     """Decorator to measure execution time, CPU and memory usage"""
