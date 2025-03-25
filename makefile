@@ -36,8 +36,19 @@ create_test_file: ## Create a test file with first 5000 lines
 	head -n 5000 aisdk-test.csv > aisdk-test.csv
 
 hpc_github_setup: 
-	eval "$(ssh-agent -s)"
+	@eval "$$(ssh-agent -s)"
 	ssh-add ~/.ssh/github
+
+# Slurm commands:
+
+slurm_usage:
+	sreport -T cpu,mem,gres/gpu cluster AccountUtilizationByUser Start=0301 End=0331
+
+slurm_nodes:
+	scontrol show node
+
+slurm_queue:
+	squeue -o"%.7i %.9P %.8j %.8u %.2t %.10M %.6D %C"
 
 .PHONY: help clean venv activate install run create_test_file
 
