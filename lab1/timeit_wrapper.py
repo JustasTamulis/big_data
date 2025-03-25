@@ -12,4 +12,5 @@ def timeit(func):
         total_time = end_time - start_time
         print(f"Function {func.__name__} took {total_time:.2f}s")
         return result
+
     return timeit_wrapper
