@@ -8,7 +8,6 @@ from sklearn.cluster import DBSCAN
 from detection import ANOMALY_CLUSTER_RADIUS, TIME_THRESHOLD, EARTH_RADIUS
 
 
-
 def calculate_distance(pos1, pos2):  # -> kilometers
     """Calculate the great circle distance between two points on Earth."""
     lat1, lon1 = pos1
@@ -105,7 +104,11 @@ def visualize_anomaly_clusters(anomaly_data):
     m = folium.Map(location=[54.687157, 25.279652], zoom_start=6)
 
     # Generate random colors for each cluster
-    max_cluster_id = max(anomaly_data["cluster"]) if len(anomaly_data) > 0 and max(anomaly_data["cluster"]) >= 0 else -1
+    max_cluster_id = (
+        max(anomaly_data["cluster"])
+        if len(anomaly_data) > 0 and max(anomaly_data["cluster"]) >= 0
+        else -1
+    )
     cluster_colors = [
         "#%06x" % random.randint(0, 0xFFFFFF) for _ in range(max_cluster_id + 2)
     ]  # +2 for -1 and safety
@@ -126,7 +129,7 @@ def visualize_anomaly_clusters(anomaly_data):
             if label not in cluster_centers:
                 cluster_centers[label] = []
             cluster_centers[label].append(middle_point)
-    
+
     # Plot cluster circles
     for cluster_id, points in cluster_centers.items():
         center = calculate_center_point(points)
@@ -141,38 +144,38 @@ def visualize_anomaly_clusters(anomaly_data):
 
     # Plot tracks for each anomaly batch
     for _, row in anomaly_df.iterrows():
-        mmsi = row['mmsi']
-        ship_type = row['ship_type']
-        start_time = row['start_time']
-        end_time = row['end_time']
-        all_positions = row['all_positions']
-        label = row['cluster']
-        
+        mmsi = row["mmsi"]
+        ship_type = row["ship_type"]
+        start_time = row["start_time"]
+        end_time = row["end_time"]
+        all_positions = row["all_positions"]
+        label = row["cluster"]
+
         # Extract positions and anomaly flags
         positions = []
         color_values = []
         for (lat, lon), is_anomaly, speed in all_positions:
             positions.append([lat, lon])
             color_values.append(1.0 if is_anomaly else 0.0)
-            
+
             # Add a marker for each point with speed information
-            color = 'red' if is_anomaly else 'green'
+            color = "red" if is_anomaly else "green"
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=3,
                 color=color,
                 fill=True,
                 fill_opacity=0.7,
-                tooltip=f"MMSI: {mmsi}<br>Speed: {speed:.2f} km/h<br>{'Anomalous' if is_anomaly else 'Normal'}"
+                tooltip=f"MMSI: {mmsi}<br>Speed: {speed:.2f} km/h<br>{'Anomalous' if is_anomaly else 'Normal'}",
             ).add_to(points_layer)
-        
-        tooltip = f'''
+
+        tooltip = f"""
         MMSI: {mmsi}<br>
         SHIP_TYPE: {ship_type}<br>
         Start: {start_time.strftime("%Y-%m-%d %H:%M:%S")}<br>
         End: {end_time.strftime("%Y-%m-%d %H:%M:%S")}<br>
         Cluster: {label if label >= 0 else "None"}
-        '''
+        """
 
         # Add tooltip polyline with hover effects using folium.Element
         folium.PolyLine(
@@ -184,7 +187,7 @@ def visualize_anomaly_clusters(anomaly_data):
 
         # Shift the color values by 1
         color_values = color_values[1:] + [0]
-        
+
         # Add the color line for anomaly visualization
         folium.ColorLine(
             positions=positions,
@@ -211,12 +214,19 @@ if __name__ == "__main__":
 
     # Filter anomalous vessels
     anomaly_vessels = results_df[results_df["is_anomaly"] == True].copy()
-    
+
     # Prepare data for clustering
     anomaly_data = []
     for _, row in anomaly_vessels.iterrows():
         anomaly_batches = eval(row["anomaly_batches"])
-        for start_time, end_time, middle_point, all_positions, total_points, total_anomaly_points in anomaly_batches:
+        for (
+            start_time,
+            end_time,
+            middle_point,
+            all_positions,
+            total_points,
+            total_anomaly_points,
+        ) in anomaly_batches:
             anomaly_data.append(
                 {
                     "mmsi": row["MMSI"],
@@ -242,7 +252,6 @@ if __name__ == "__main__":
     # Add cluster assignments back to anomaly data
     anomaly_df["cluster"] = anomaly_clusters
 
-
     # Print results
     print(
         f"\nFound {max(anomaly_clusters) + 1 if anomaly_clusters and max(anomaly_clusters) >= 0 else 0} clusters of anomalies"
@@ -262,7 +271,9 @@ if __name__ == "__main__":
         total_points = group["point_count"].sum()
         total_anomaly_points = group["total_anomaly_points"].sum()
         total_batches = len(group)
-        total_time = (group["end_time"].max() - group["start_time"].min()).total_seconds() / 3600
+        total_time = (
+            group["end_time"].max() - group["start_time"].min()
+        ).total_seconds() / 3600
         different_clusters = len(group[group["cluster"] >= 0]["cluster"].unique())
         return pd.Series(
             {
@@ -285,7 +296,9 @@ if __name__ == "__main__":
         total_points = group["point_count"].sum()
         total_anomaly_points = group["total_anomaly_points"].sum()
         total_batches = len(group)
-        total_time = (group["end_time"].max() - group["start_time"].min()).total_seconds() / 60
+        total_time = (
+            group["end_time"].max() - group["start_time"].min()
+        ).total_seconds() / 60
         return pd.Series(
             {
                 "Different Vessels": different_vessels,
@@ -295,12 +308,15 @@ if __name__ == "__main__":
                 "Total Time (minutes)": total_time,
             }
         )
-    
-    cluster_results = anomaly_df[anomaly_df["cluster"] >= 0].groupby("cluster").apply(prepare_cluster_results)
-    cluster_results= cluster_results.astype(int)
+
+    cluster_results = (
+        anomaly_df[anomaly_df["cluster"] >= 0]
+        .groupby("cluster")
+        .apply(prepare_cluster_results)
+    )
+    cluster_results = cluster_results.astype(int)
     print(cluster_results)
     print("Done!")
-
 
     ################################################
     # Extra
@@ -315,7 +331,6 @@ if __name__ == "__main__":
 
     # print(df[(~df["Ship type"].isna()) & (df["Ship type"] != "Undefined")].iloc[100])
 
-    
     # print(anomaly_df.mmsi.value_counts())
 
     # print(anomaly_df.sort_values("point_count", ascending=False))

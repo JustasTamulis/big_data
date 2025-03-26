@@ -9,7 +9,7 @@ from detection import process_file_in_chunks
 from joblib import Memory
 
 # Set up joblib Memory for caching
-memory = Memory(location='output/joblib_cache', verbose=0)
+memory = Memory(location="output/joblib_cache", verbose=0)
 
 
 def measure_time_and_resources(func):
@@ -42,15 +42,24 @@ def measure_time_and_resources(func):
 @measure_time_and_resources
 def timed_process_file_in_chunks(file_path, chunk_size, num_processes):
     """Process vessel data with specific parameters"""
-    return process_file_in_chunks(file_path, chunk_size=chunk_size, num_processes=num_processes)
+    return process_file_in_chunks(
+        file_path, chunk_size=chunk_size, num_processes=num_processes
+    )
+
 
 @memory.cache
 def process_with_params(file_path, chunk_size, num_processes):
     """Cached version of process_file_in_chunks"""
-    return timed_process_file_in_chunks(file_path, chunk_size=chunk_size, num_processes=num_processes)
+    return timed_process_file_in_chunks(
+        file_path, chunk_size=chunk_size, num_processes=num_processes
+    )
 
 
-def analyze_performance(file_path, chunk_sizes=[10000, 50000, 100000, 500000, 1000000], process_counts=[2, 4, 8, 12, 16]):
+def analyze_performance(
+    file_path,
+    chunk_sizes=[10000, 50000, 100000, 500000, 1000000],
+    process_counts=[2, 4, 8, 12, 16],
+):
     """Comprehensive performance analysis across different configurations"""
 
     results = []
@@ -71,7 +80,7 @@ def analyze_performance(file_path, chunk_sizes=[10000, 50000, 100000, 500000, 10
             "memory_used": sequential_metrics["memory_used"],
         }
     )
-    
+
     for chunk_size in chunk_sizes:
         for num_processes in process_counts:
             print(
@@ -83,7 +92,9 @@ def analyze_performance(file_path, chunk_sizes=[10000, 50000, 100000, 500000, 10
             parallel_time = metrics["execution_time"]
 
             speedup = sequential_time / parallel_time
-            efficiency = speedup / num_processes  # How effectively we use each processor
+            efficiency = (
+                speedup / num_processes
+            )  # How effectively we use each processor
 
             results.append(
                 {
@@ -102,7 +113,7 @@ def analyze_performance(file_path, chunk_sizes=[10000, 50000, 100000, 500000, 10
 
 def plot_performance_metrics(performance_df):
     """Create comprehensive visualizations of performance metrics"""
-    
+
     # 1. Execution Time vs Processes for different chunk sizes
     plt.figure(figsize=(10, 6))
     for chunk_size in performance_df["chunk_size"].unique():
@@ -177,45 +188,59 @@ def plot_performance_metrics(performance_df):
     plt.grid(True)
     plt.savefig("output/memory_usage_plot.png")
     plt.close()
-    
+
     # 5. Heatmap of Execution Time (processes vs chunk size) using matplotlib
     plt.figure(figsize=(10, 8))
-    
+
     # Get unique values for processes and chunk sizes
     processes = sorted(performance_df["processes"].unique())
     processes = [p for p in processes if p != 1]  # Remove sequential case
     chunk_sizes = sorted(performance_df["chunk_size"].unique())
-    
+
     # Create a 2D array for the heatmap
     speedup_matrix = np.zeros((len(chunk_sizes), len(processes)))
-    
+
     # Fill the matrix with speedup values
     for i, chunk_size in enumerate(chunk_sizes):
         for j, proc in enumerate(processes):
             # Get speedup for this configuration
-            filtered_df = performance_df[(performance_df["chunk_size"] == chunk_size) & 
-                                        (performance_df["processes"] == proc)]
+            filtered_df = performance_df[
+                (performance_df["chunk_size"] == chunk_size)
+                & (performance_df["processes"] == proc)
+            ]
             if not filtered_df.empty:
                 speedup_matrix[i, j] = filtered_df["speedup"].values[0]
-    
+
     # Create heatmap with color scale from 0 to max speedup
-    heatmap = plt.imshow(speedup_matrix, cmap='RdYlGn', aspect='auto', vmin=1, vmax=np.max(speedup_matrix))
-    plt.colorbar(heatmap, label='Speedup')
-    
+    heatmap = plt.imshow(
+        speedup_matrix,
+        cmap="RdYlGn",
+        aspect="auto",
+        vmin=1,
+        vmax=np.max(speedup_matrix),
+    )
+    plt.colorbar(heatmap, label="Speedup")
+
     # Set x and y axis labels
     plt.xticks(range(len(processes)), processes)
     plt.yticks(range(len(chunk_sizes)), [f"{cs}" for cs in chunk_sizes])
-    
+
     plt.xlabel("Number of Processes")
     plt.ylabel("Chunk Size")
     plt.title("Speedup Heatmap (Processes vs Chunk Size)")
-    
+
     # Add text annotations with speedup values
     for i in range(len(chunk_sizes)):
         for j in range(len(processes)):
-            plt.text(j, i, f"{speedup_matrix[i, j]:.2f}", 
-                    ha="center", va="center", color="black")
-    
+            plt.text(
+                j,
+                i,
+                f"{speedup_matrix[i, j]:.2f}",
+                ha="center",
+                va="center",
+                color="black",
+            )
+
     plt.tight_layout()
     plt.savefig("output/speedup_heatmap.png")
     plt.close()
@@ -225,17 +250,17 @@ if __name__ == "__main__":
     # Set file path
     file_path = "data/aisdk-test.csv"
     # file_path = "data/aisdk-2025-02-09.csv"
-    
-    max_processes=mp.cpu_count()
+
+    max_processes = mp.cpu_count()
     print(max_processes)
     # process_counts = np.linspace(2, max_processes, 5, dtype=int)
 
     # Analyze performance with different configurations
     print("\nAnalyzing performance...")
     performance_df = analyze_performance(
-        file_path, 
+        file_path,
         chunk_sizes=[10000, 50000, 100000, 500000, 1000000],
-        process_counts = [2, 4, 8, 12, 16]
+        process_counts=[2, 4, 8, 12, 16],
         # chunk_sizes=[10000, 100000, 1000000],
         # process_counts = [2, 8, 16]
     )

@@ -12,14 +12,16 @@ SPEED_THRESHOLD = 400  # Record speed in km/h with 50% margin
 TIME_THRESHOLD = 10  # minutes - batch window for anomalies
 ANOMALY_CLUSTER_RADIUS = 20  # Radius in km to check for vessel clusters
 EARTH_RADIUS = 6371  # Earth's radius in kilometers
-MINIMUM_ANOMALIES_PER_BATCH = 3 # Number of anomalies per time per vessel to be anomalous
+MINIMUM_ANOMALIES_PER_BATCH = (
+    3  # Number of anomalies per time per vessel to be anomalous
+)
 EXCLUDED_STATUSES = [
     "moored",
     "at anchor",
     "Constrained by her draught",
     "Restricted maneuverability",
 ]
-EXCLUDED_MMSI = ["2579999"] # 2579999 is a test MMSI that should be excluded
+EXCLUDED_MMSI = ["2579999"]  # 2579999 is a test MMSI that should be excluded
 
 # Spoofing detection
 
@@ -80,7 +82,14 @@ def process_anomaly_batch(current_batch, vessel_data, speeds):
     total_points = len(batch_points)
     total_anomaly_points = len(current_batch)
 
-    return (start_time, end_time, middle_point, all_positions, total_points, total_anomaly_points)
+    return (
+        start_time,
+        end_time,
+        middle_point,
+        all_positions,
+        total_points,
+        total_anomaly_points,
+    )
 
 
 def calculate_distance_matrix(lat1, lon1, lat2, lon2):
@@ -274,7 +283,14 @@ if __name__ == "__main__":
     # Convert results to DataFrame
     results_df = pd.DataFrame(
         results,
-        columns=["MMSI", "ship_type", "point_count", "max_speed", "is_anomaly", "anomaly_batches"],
+        columns=[
+            "MMSI",
+            "ship_type",
+            "point_count",
+            "max_speed",
+            "is_anomaly",
+            "anomaly_batches",
+        ],
     )
 
     results_df.to_csv("output/results.csv", index=False)
