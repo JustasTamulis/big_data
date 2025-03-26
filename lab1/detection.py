@@ -111,6 +111,7 @@ def calculate_distance_matrix(lat1, lon1, lat2, lon2):
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
     return EARTH_RADIUS * c
 
+
 def calculate_heading_matrix(lat1, lon1, lat2, lon2):
     """
     Calculate the angle between two points in the range [0, 360]
@@ -200,7 +201,7 @@ def detect_vessel_anomalies(vessel_data):
     # Ignored, because the gps coordinates rounding fluctuation is too high
 
     # calculated_headings = calculate_heading_matrix(lats, lons, prev_lats, prev_lons)
-    
+
     # # Reported headings are in the range [0, 360]
     # reported_headings = vessel_data["Heading"].values
 
@@ -271,7 +272,9 @@ def process_chunk(chunk):
     chunk = chunk[~chunk["Navigational status"].isin(EXCLUDED_STATUSES)]
     chunk = chunk[~chunk["MMSI"].isin(EXCLUDED_MMSI)]
     chunk = chunk[~chunk["Heading"].isna()]
-    chunk = chunk[["MMSI", "Ship type", "Timestamp", "Latitude", "Longitude", "Heading"]]
+    chunk = chunk[
+        ["MMSI", "Ship type", "Timestamp", "Latitude", "Longitude", "Heading"]
+    ]
 
     results = []
     for mmsi, group in chunk.groupby("MMSI"):
@@ -313,7 +316,9 @@ def process_file_in_chunks(file_path, chunk_size=10000, num_processes=None):
 
 
 @tw.timeit
-def process_file_in_chunks_with_pooling(file_path, chunk_size=10000, num_processes=None, verbose=False):
+def process_file_in_chunks_with_pooling(
+    file_path, chunk_size=10000, num_processes=None, verbose=False
+):
     """Process the CSV file in chunks using multiprocessing.Pool's imap_unordered"""
     if num_processes is None:
         num_processes = mp.cpu_count()
@@ -322,20 +327,20 @@ def process_file_in_chunks_with_pooling(file_path, chunk_size=10000, num_process
 
     # Create a generator of chunks
     chunks = pd.read_csv(file_path, chunksize=chunk_size)
-    
+
     all_results = []
-    
+
     # Process each chunk using a Pool with imap_unordered
     with mp.Pool(processes=num_processes) as pool:
         # imap_unordered returns results as they become available
         results_iterator = pool.imap_unordered(process_chunk, chunks)
-        
+
         # Collect results as they arrive
         for i, chunk_results in enumerate(results_iterator):
             all_results.extend(chunk_results)
             if verbose:
                 print(f"Processed chunk {i+1}")
-    
+
     return all_results
 
 
