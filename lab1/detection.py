@@ -11,6 +11,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 SPEED_THRESHOLD = 400  # Record speed in km/h with 50% margin
 TIME_THRESHOLD = 10  # minutes - batch window for anomalies
 ANOMALY_CLUSTER_RADIUS = 20  # Radius in km to check for vessel clusters
+ANGLE_DIFF_ANOMALY = 90  # Angle difference in degrees for heading anomalies
 EARTH_RADIUS = 6371  # Earth's radius in kilometers
 MINIMUM_ANOMALIES_PER_BATCH = (
     3  # Number of anomalies per time per vessel to be anomalous
@@ -110,6 +111,24 @@ def calculate_distance_matrix(lat1, lon1, lat2, lon2):
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
     return EARTH_RADIUS * c
 
+def calculate_heading_matrix(lat1, lon1, lat2, lon2):
+    """
+    Calculate the angle between two points in the range [0, 360]
+
+    Args:
+        lat1, lon1: Latitude and longitude of the first point
+        lat2, lon2: Latitude and longitude of the second point
+
+    Returns:
+        The bearing in degrees in the range [0, 360]
+    """
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    dlon = lon2 - lon1
+    y = np.sin(dlon) * np.cos(lat2)
+    x = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+    angle = np.degrees(np.arctan2(y, x))
+    return (angle + 360) % 360
+
 
 def detect_vessel_anomalies(vessel_data):
     """
@@ -158,24 +177,45 @@ def detect_vessel_anomalies(vessel_data):
     prev_lons[0] = np.nan
     prev_timestamps[0] = np.datetime64("NaT")
 
+    ##############################
+    # Speed anomaly detection
+
     # Calculate time differences in hours (vectorized)
     time_diffs = (timestamps - prev_timestamps).astype("timedelta64[s]").astype(
         float
     ) / 3600
-
     # Calculate distances (vectorized)
     distances = calculate_distance_matrix(prev_lats, prev_lons, lats, lons)
-
     # Calculate speeds
     speeds = np.divide(
         distances, time_diffs, out=np.zeros_like(distances), where=time_diffs > 0
     )
-
     # Find maximum speed (ignoring NaN values)
     max_speed = np.nanmax(speeds) if not np.isnan(speeds).all() else 0
-
     # Find indices of anomalous speeds
     anomaly_indices = np.where(speeds > SPEED_THRESHOLD)[0]
+
+    ##############################
+    # Heading anomaly detection
+    # Ignored, because the gps coordinates rounding fluctuation is too high
+
+    # calculated_headings = calculate_heading_matrix(lats, lons, prev_lats, prev_lons)
+    
+    # # Reported headings are in the range [0, 360]
+    # reported_headings = vessel_data["Heading"].values
+
+    # # Calculate the difference between calculated and reported headings
+    # # Make sure to handle the case, that 0 is close to 360
+
+    # heading_diffs = np.abs(calculated_headings - reported_headings)
+    # heading_diffs = np.minimum(heading_diffs, 360 - heading_diffs)
+
+    # # Find indices of anomalous headings
+    # heading_anomaly_indices = np.where(heading_diffs > ANGLE_DIFF_ANOMALY)[0]
+
+    # # Combine speed and heading anomalies with OR
+    # anomaly_indices = np.union1d(anomaly_indices, heading_anomaly_indices)
+    ##############################
 
     if len(anomaly_indices) == 0:
         return None
@@ -230,7 +270,8 @@ def process_chunk(chunk):
     # Filter out excluded navigational statuses
     chunk = chunk[~chunk["Navigational status"].isin(EXCLUDED_STATUSES)]
     chunk = chunk[~chunk["MMSI"].isin(EXCLUDED_MMSI)]
-    chunk = chunk[["MMSI", "Ship type", "Timestamp", "Latitude", "Longitude"]]
+    chunk = chunk[~chunk["Heading"].isna()]
+    chunk = chunk[["MMSI", "Ship type", "Timestamp", "Latitude", "Longitude", "Heading"]]
 
     results = []
     for mmsi, group in chunk.groupby("MMSI"):
