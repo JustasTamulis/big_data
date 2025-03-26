@@ -5,7 +5,11 @@ import matplotlib.pyplot as plt
 import time
 import psutil
 import multiprocessing as mp
-from detection import load_data, detect_vessel_anomalies
+from detection import process_file_in_chunks
+from joblib import Memory
+
+# Set up joblib Memory for caching
+memory = Memory(location='output/joblib_cache', verbose=0)
 
 
 def measure_time_and_resources(func):
@@ -27,7 +31,6 @@ def measure_time_and_resources(func):
         mem_used = mem_after - mem_before
 
         return {
-            "result": result,
             "execution_time": execution_time,
             "cpu_percent": cpu_percent,
             "memory_used": mem_used,
@@ -37,41 +40,30 @@ def measure_time_and_resources(func):
 
 
 @measure_time_and_resources
-def process_sequential(df):
-    """Process vessel data sequentially"""
-    results = []
-    for mmsi, group in df.groupby("MMSI"):
-        results.append(detect_vessel_anomalies(group))
-    return results
+def timed_process_file_in_chunks(file_path, chunk_size, num_processes):
+    """Process vessel data with specific parameters"""
+    return process_file_in_chunks(file_path, chunk_size=chunk_size, num_processes=num_processes)
+
+@memory.cache
+def process_with_params(file_path, chunk_size, num_processes):
+    """Cached version of process_file_in_chunks"""
+    return timed_process_file_in_chunks(file_path, chunk_size=chunk_size, num_processes=num_processes)
 
 
-@measure_time_and_resources
-def process_parallel(df, num_processes, chunk_size=10):
-    """Process vessel data in parallel"""
-    vessel_groups = (group for _, group in df.groupby("MMSI"))
-    with mp.Pool(processes=num_processes) as pool:
-        results = pool.imap_unordered(
-            detect_vessel_anomalies, vessel_groups, chunksize=chunk_size
-        )
-        return list(results)
-
-
-def analyze_performance(df, max_processes=None, chunk_sizes=[1, 5, 10, 20, 50]):
+def analyze_performance(file_path, chunk_sizes=[10000, 50000, 100000, 500000, 1000000], process_counts=[2, 4, 8, 12, 16]):
     """Comprehensive performance analysis across different configurations"""
-    if max_processes is None:
-        max_processes = mp.cpu_count()
 
     results = []
 
-    # Run sequential first
+    # Run sequential first (using 1 process)
     print("\nMeasuring sequential processing...")
-    sequential_metrics = process_sequential(df)
+    sequential_metrics = process_with_params(file_path, chunk_sizes[0], 1)
     sequential_time = sequential_metrics["execution_time"]
 
     results.append(
         {
             "processes": 1,
-            "chunk_size": "N/A",
+            "chunk_size": chunk_sizes[0],
             "time": sequential_time,
             "speedup": 1.0,
             "efficiency": 1.0,
@@ -79,22 +71,19 @@ def analyze_performance(df, max_processes=None, chunk_sizes=[1, 5, 10, 20, 50]):
             "memory_used": sequential_metrics["memory_used"],
         }
     )
-
-    # Create 5 equally spaced process counts from 2 to max_processes
-    process_counts = np.linspace(2, max_processes, 5, dtype=int)
-    for num_processes in process_counts:
-        for chunk_size in chunk_sizes:
+    
+    for chunk_size in chunk_sizes:
+        for num_processes in process_counts:
             print(
                 f"\nTesting with {num_processes} processes, chunk size {chunk_size}..."
             )
 
-            metrics = process_parallel(df, num_processes, chunk_size)
+            metrics = process_with_params(file_path, chunk_size, num_processes)
+            print(metrics)
             parallel_time = metrics["execution_time"]
 
             speedup = sequential_time / parallel_time
-            efficiency = (
-                speedup / num_processes
-            )  # This shows how effectively we use each processor
+            efficiency = speedup / num_processes  # How effectively we use each processor
 
             results.append(
                 {
@@ -113,101 +102,150 @@ def analyze_performance(df, max_processes=None, chunk_sizes=[1, 5, 10, 20, 50]):
 
 def plot_performance_metrics(performance_df):
     """Create comprehensive visualizations of performance metrics"""
-    fig = plt.figure(figsize=(20, 15))
-
+    
     # 1. Execution Time vs Processes for different chunk sizes
-    ax1 = plt.subplot(2, 2, 1)
+    plt.figure(figsize=(10, 6))
     for chunk_size in performance_df["chunk_size"].unique():
-        if chunk_size != "N/A":
-            df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
-            ax1.plot(
-                df_chunk["processes"],
-                df_chunk["time"],
-                marker="o",
-                label=f"Chunk size {chunk_size}",
-            )
-    ax1.set_xlabel("Number of Processes")
-    ax1.set_ylabel("Execution Time (s)")
-    ax1.set_title("Execution Time vs Number of Processes")
-    ax1.legend()
-    ax1.grid(True)
+        df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
+        plt.plot(
+            df_chunk["processes"],
+            df_chunk["time"],
+            marker="o",
+            label=f"Chunk size {chunk_size}",
+        )
+    plt.xlabel("Number of Processes")
+    plt.ylabel("Execution Time (s)")
+    plt.title("Execution Time vs Number of Processes")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("output/execution_time_plot.png")
+    plt.close()
 
     # 2. Speedup Analysis
-    ax2 = plt.subplot(2, 2, 2)
+    plt.figure(figsize=(10, 6))
     for chunk_size in performance_df["chunk_size"].unique():
-        if chunk_size != "N/A":
-            df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
-            ax2.plot(
-                df_chunk["processes"],
-                df_chunk["speedup"],
-                marker="o",
-                label=f"Chunk size {chunk_size}",
-            )
+        df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
+        plt.plot(
+            df_chunk["processes"],
+            df_chunk["speedup"],
+            marker="o",
+            label=f"Chunk size {chunk_size}",
+        )
     # Add ideal speedup line
     max_procs = performance_df["processes"].max()
-    ax2.plot([1, max_procs], [1, max_procs], "k--", label="Ideal Speedup")
-    ax2.set_xlabel("Number of Processes")
-    ax2.set_ylabel("Speedup")
-    ax2.set_title("Speedup vs Number of Processes")
-    ax2.legend()
-    ax2.grid(True)
+    plt.plot([1, max_procs], [1, max_procs], "k--", label="Ideal Speedup")
+    plt.xlabel("Number of Processes")
+    plt.ylabel("Speedup")
+    plt.title("Speedup vs Number of Processes")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("output/speedup_plot.png")
+    plt.close()
 
     # 3. CPU Usage
-    ax3 = plt.subplot(2, 2, 3)
+    plt.figure(figsize=(10, 6))
     for chunk_size in performance_df["chunk_size"].unique():
-        if chunk_size != "N/A":
-            df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
-            ax3.plot(
-                df_chunk["processes"],
-                df_chunk["cpu_percent"],
-                marker="o",
-                label=f"Chunk size {chunk_size}",
-            )
-    ax3.set_xlabel("Number of Processes")
-    ax3.set_ylabel("CPU Usage (%)")
-    ax3.set_title("CPU Usage vs Number of Processes")
-    ax3.legend()
-    ax3.grid(True)
+        df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
+        plt.plot(
+            df_chunk["processes"],
+            df_chunk["cpu_percent"],
+            marker="o",
+            label=f"Chunk size {chunk_size}",
+        )
+    plt.xlabel("Number of Processes")
+    plt.ylabel("CPU Usage (%)")
+    plt.title("CPU Usage vs Number of Processes")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("output/cpu_usage_plot.png")
+    plt.close()
 
     # 4. Memory Usage
-    ax4 = plt.subplot(2, 2, 4)
+    plt.figure(figsize=(10, 6))
     for chunk_size in performance_df["chunk_size"].unique():
-        if chunk_size != "N/A":
-            df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
-            ax4.plot(
-                df_chunk["processes"],
-                df_chunk["memory_used"],
-                marker="o",
-                label=f"Chunk size {chunk_size}",
-            )
-    ax4.set_xlabel("Number of Processes")
-    ax4.set_ylabel("Memory Usage (MB)")
-    ax4.set_title("Memory Usage vs Number of Processes")
-    ax4.legend()
-    ax4.grid(True)
-
+        df_chunk = performance_df[performance_df["chunk_size"] == chunk_size]
+        plt.plot(
+            df_chunk["processes"],
+            df_chunk["memory_used"],
+            marker="o",
+            label=f"Chunk size {chunk_size}",
+        )
+    plt.xlabel("Number of Processes")
+    plt.ylabel("Memory Usage (MB)")
+    plt.title("Memory Usage vs Number of Processes")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("output/memory_usage_plot.png")
+    plt.close()
+    
+    # 5. Heatmap of Execution Time (processes vs chunk size) using matplotlib
+    plt.figure(figsize=(10, 8))
+    
+    # Get unique values for processes and chunk sizes
+    processes = sorted(performance_df["processes"].unique())
+    processes = [p for p in processes if p != 1]  # Remove sequential case
+    chunk_sizes = sorted(performance_df["chunk_size"].unique())
+    
+    # Create a 2D array for the heatmap
+    speedup_matrix = np.zeros((len(chunk_sizes), len(processes)))
+    
+    # Fill the matrix with speedup values
+    for i, chunk_size in enumerate(chunk_sizes):
+        for j, proc in enumerate(processes):
+            # Get speedup for this configuration
+            filtered_df = performance_df[(performance_df["chunk_size"] == chunk_size) & 
+                                        (performance_df["processes"] == proc)]
+            if not filtered_df.empty:
+                speedup_matrix[i, j] = filtered_df["speedup"].values[0]
+    
+    # Create heatmap with color scale from 0 to max speedup
+    heatmap = plt.imshow(speedup_matrix, cmap='RdYlGn', aspect='auto', vmin=1, vmax=np.max(speedup_matrix))
+    plt.colorbar(heatmap, label='Speedup')
+    
+    # Set x and y axis labels
+    plt.xticks(range(len(processes)), processes)
+    plt.yticks(range(len(chunk_sizes)), [f"{cs}" for cs in chunk_sizes])
+    
+    plt.xlabel("Number of Processes")
+    plt.ylabel("Chunk Size")
+    plt.title("Speedup Heatmap (Processes vs Chunk Size)")
+    
+    # Add text annotations with speedup values
+    for i in range(len(chunk_sizes)):
+        for j in range(len(processes)):
+            plt.text(j, i, f"{speedup_matrix[i, j]:.2f}", 
+                    ha="center", va="center", color="black")
+    
     plt.tight_layout()
-    plt.savefig("performance_analysis.png")
+    plt.savefig("output/speedup_heatmap.png")
     plt.close()
 
 
 if __name__ == "__main__":
-    # Load and prepare data
+    # Set file path
     file_path = "data/aisdk-test.csv"
-    print("Loading data...")
-    df = load_data(file_path)
-    print("Data length: ", len(df))
+    # file_path = "data/aisdk-2025-02-09.csv"
+    
+    max_processes=mp.cpu_count()
+    print(max_processes)
+    # process_counts = np.linspace(2, max_processes, 5, dtype=int)
 
     # Analyze performance with different configurations
     print("\nAnalyzing performance...")
-    performance_df = analyze_performance(df, chunk_sizes=[1, 5, 10, 20, 50])
+    performance_df = analyze_performance(
+        file_path, 
+        chunk_sizes=[10000, 50000, 100000, 500000, 1000000],
+        process_counts = [2, 4, 8, 12, 16]
+        # chunk_sizes=[10000, 100000, 1000000],
+        # process_counts = [2, 8, 16]
+    )
 
     # Plot and save results
     print("\nGenerating performance visualizations...")
     plot_performance_metrics(performance_df)
 
     # Save detailed results to CSV
-    performance_df.to_csv("performance_metrics.csv", index=False)
+    performance_df.to_csv("output/performance_metrics.csv", index=False)
 
     # Print summary
     print("\nPerformance analysis summary:")
@@ -218,4 +256,4 @@ if __name__ == "__main__":
     print(f"Speedup: {best_config['speedup']:.2f}x")
     print(f"Efficiency: {best_config['efficiency']:.2f}")
     print(f"\nDetailed results saved to 'performance_metrics.csv'")
-    print(f"Visualizations saved to 'performance_analysis.png'")
+    print(f"Visualizations saved to individual plots in the 'output' directory")
