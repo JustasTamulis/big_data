@@ -260,7 +260,7 @@ if __name__ == "__main__":
     print(anomaly_vessels[["MMSI", "point_count", "max_speed"]])
 
     print("Visualizing anomaly clusters...")
-    # visualize_anomaly_clusters(anomaly_df)
+    visualize_anomaly_clusters(anomaly_df)
 
     # Prepare the results
     #  (1. how much spoofed ships, how long and how many anomalies)

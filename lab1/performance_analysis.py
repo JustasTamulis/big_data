@@ -248,8 +248,8 @@ def plot_performance_metrics(performance_df):
 
 if __name__ == "__main__":
     # Set file path
-    file_path = "data/aisdk-test.csv"
-    # file_path = "data/aisdk-2025-02-09.csv"
+    # file_path = "data/aisdk-small.csv"
+    file_path = "data/aisdk-2025-02-09.csv"
 
     max_processes = mp.cpu_count()
     print(max_processes)

@@ -8,8 +8,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 # Constants
-SPEED_THRESHOLD = 400  # Record speed in km/h with 50% margin
-TIME_THRESHOLD = 10  # minutes - batch window for anomalies
+SPEED_THRESHOLD = 300  # Record speed in km/h with 50% margin
+TIME_THRESHOLD = 20  # minutes - batch window for anomalies
 ANOMALY_CLUSTER_RADIUS = 20  # Radius in km to check for vessel clusters
 ANGLE_DIFF_ANOMALY = 90  # Angle difference in degrees for heading anomalies
 EARTH_RADIUS = 6371  # Earth's radius in kilometers
