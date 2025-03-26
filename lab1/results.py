@@ -95,18 +95,17 @@ def calculate_center_point(coords):
     return np.mean(coords, axis=0)
 
 
-def visualize_anomaly_clusters(anomaly_data, cluster_labels):
+def visualize_anomaly_clusters(anomaly_data):
     """
     Visualize anomaly clusters on a map with vessel tracks colored by anomaly status.
 
     Args:
-        anomaly_data: DataFrame with columns 'mmsi', 'start_time', 'end_time', 'middle_point', 'all_positions'
-        cluster_labels: List of cluster assignments
+        anomaly_data: DataFrame with columns 'mmsi', 'start_time', 'end_time', 'middle_point', 'all_positions', 'cluster'
     """
     m = folium.Map(location=[54.687157, 25.279652], zoom_start=6)
 
     # Generate random colors for each cluster
-    max_cluster_id = max(cluster_labels) if cluster_labels else -1
+    max_cluster_id = max(anomaly_data["cluster"]) if len(anomaly_data) > 0 and max(anomaly_data["cluster"]) >= 0 else -1
     cluster_colors = [
         "#%06x" % random.randint(0, 0xFFFFFF) for _ in range(max_cluster_id + 2)
     ]  # +2 for -1 and safety
@@ -120,7 +119,9 @@ def visualize_anomaly_clusters(anomaly_data, cluster_labels):
     # First, plot clusters
     # Group by cluster to calculate centers
     cluster_centers = {}
-    for label, middle_point in zip(cluster_labels, anomaly_data["middle_point"]):
+    for _, row in anomaly_data.iterrows():
+        label = row["cluster"]
+        middle_point = row["middle_point"]
         if label >= 0:  # Skip noise points marked as -1
             if label not in cluster_centers:
                 cluster_centers[label] = []
@@ -139,14 +140,14 @@ def visualize_anomaly_clusters(anomaly_data, cluster_labels):
         ).add_to(clusters_layer)
 
     # Plot tracks for each anomaly batch
-    for i, (mmsi, ship_type, start_time, end_time, all_positions, label) in enumerate(zip(
-        anomaly_data["mmsi"],
-        anomaly_data["ship_type"],
-        anomaly_data["start_time"],
-        anomaly_data["end_time"],
-        anomaly_data["all_positions"],
-        cluster_labels
-    )):
+    for _, row in anomaly_df.iterrows():
+        mmsi = row['mmsi']
+        ship_type = row['ship_type']
+        start_time = row['start_time']
+        end_time = row['end_time']
+        all_positions = row['all_positions']
+        label = row['cluster']
+        
         # Extract positions and anomaly flags
         positions = []
         color_values = []
@@ -240,20 +241,70 @@ if __name__ == "__main__":
     anomaly_clusters = find_point_clusters(batches)
     # Add cluster assignments back to anomaly data
     anomaly_df["cluster"] = anomaly_clusters
-    print(anomaly_df)
 
 
-    # # Print results
-    # print(
-    #     f"\nFound {max(anomaly_clusters) + 1 if anomaly_clusters and max(anomaly_clusters) >= 0 else 0} clusters of anomalies"
-    # )
-    # print(f"Found {len(anomaly_vessels)} vessels with potential GPS spoofing")
-    # print(anomaly_vessels[["MMSI", "point_count", "max_speed"]])
+    # Print results
+    print(
+        f"\nFound {max(anomaly_clusters) + 1 if anomaly_clusters and max(anomaly_clusters) >= 0 else 0} clusters of anomalies"
+    )
+    print(f"Found {len(anomaly_vessels)} vessels with potential GPS spoofing")
+    print(anomaly_vessels[["MMSI", "point_count", "max_speed"]])
 
     print("Visualizing anomaly clusters...")
-    visualize_anomaly_clusters(anomaly_df, anomaly_clusters)
+    # visualize_anomaly_clusters(anomaly_df)
 
+    # Prepare the results
+    #  (1. how much spoofed ships, how long and how many anomalies)
+
+    def prepare_vessel_results(group):
+        mmsi = group["mmsi"].iloc[0]
+        ship_type = group["ship_type"].iloc[0]
+        total_points = group["point_count"].sum()
+        total_anomaly_points = group["total_anomaly_points"].sum()
+        total_batches = len(group)
+        total_time = (group["end_time"].max() - group["start_time"].min()).total_seconds() / 3600
+        different_clusters = len(group[group["cluster"] >= 0]["cluster"].unique())
+        return pd.Series(
+            {
+                "Ship Type": ship_type,
+                "Total Points": total_points,
+                "Total Anomaly Points": total_anomaly_points,
+                "Total Batches": total_batches,
+                "Total Time (h)": total_time,
+                "Different Clusters": different_clusters,
+            }
+        )
+
+    print(anomaly_df.groupby("mmsi").apply(prepare_vessel_results))
+
+    # (2. How many clusters and their sizes and time spans)
+
+    def prepare_cluster_results(group):
+        cluster_id = group["cluster"].iloc[0]
+        different_vessels = len(group["mmsi"].unique())
+        total_points = group["point_count"].sum()
+        total_anomaly_points = group["total_anomaly_points"].sum()
+        total_batches = len(group)
+        total_time = (group["end_time"].max() - group["start_time"].min()).total_seconds() / 60
+        return pd.Series(
+            {
+                "Different Vessels": different_vessels,
+                "Total Points": total_points,
+                "Total Anomaly Points": total_anomaly_points,
+                "Total Batches": total_batches,
+                "Total Time (minutes)": total_time,
+            }
+        )
+    
+    cluster_results = anomaly_df[anomaly_df["cluster"] >= 0].groupby("cluster").apply(prepare_cluster_results)
+    cluster_results= cluster_results.astype(int)
+    print(cluster_results)
     print("Done!")
+
+
+    ################################################
+    # Extra
+    ################################################
 
     # Plot 2579999
     # file_path = 'data/aisdk-test.csv'
