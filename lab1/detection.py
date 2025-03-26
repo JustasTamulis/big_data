@@ -312,6 +312,33 @@ def process_file_in_chunks(file_path, chunk_size=10000, num_processes=None):
     return all_results
 
 
+@tw.timeit
+def process_file_in_chunks_with_pooling(file_path, chunk_size=10000, num_processes=None, verbose=False):
+    """Process the CSV file in chunks using multiprocessing.Pool's imap_unordered"""
+    if num_processes is None:
+        num_processes = mp.cpu_count()
+
+    print(f"Processing with {num_processes} workers, chunk size: {chunk_size}")
+
+    # Create a generator of chunks
+    chunks = pd.read_csv(file_path, chunksize=chunk_size)
+    
+    all_results = []
+    
+    # Process each chunk using a Pool with imap_unordered
+    with mp.Pool(processes=num_processes) as pool:
+        # imap_unordered returns results as they become available
+        results_iterator = pool.imap_unordered(process_chunk, chunks)
+        
+        # Collect results as they arrive
+        for i, chunk_results in enumerate(results_iterator):
+            all_results.extend(chunk_results)
+            if verbose:
+                print(f"Processed chunk {i+1}")
+    
+    return all_results
+
+
 if __name__ == "__main__":
     # Load and prepare data
     # file_path = 'data/aisdk-test.csv'
