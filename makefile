@@ -42,7 +42,7 @@ hpc_github_setup:
 # Slurm commands:
 
 slurm_usage:
-	sreport -T cpu,mem,gres/gpu cluster AccountUtilizationByUser Start=0301 End=0331
+	sreport -T cpu,mem,gres/gpu cluster AccountUtilizationByUser Start=0301 End=0331 User=juta1001
 
 slurm_nodes:
 	scontrol show node

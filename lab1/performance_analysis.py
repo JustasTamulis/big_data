@@ -66,7 +66,7 @@ def analyze_performance(
 
     # Run sequential first (using 1 process)
     print("\nMeasuring sequential processing...")
-    sequential_metrics = process_with_params(file_path, chunk_sizes[0], 1)
+    sequential_metrics = process_with_params(file_path, chunk_sizes[-1], 1)
     sequential_time = sequential_metrics["execution_time"]
 
     results.append(
@@ -144,7 +144,7 @@ def plot_performance_metrics(performance_df):
         )
     # Add ideal speedup line
     max_procs = performance_df["processes"].max()
-    plt.plot([1, max_procs], [1, max_procs], "k--", label="Ideal Speedup")
+    #plt.plot([1, max_procs], [1, max_procs], "k--", label="Ideal Speedup")
     plt.xlabel("Number of Processes")
     plt.ylabel("Speedup")
     plt.title("Speedup vs Number of Processes")
@@ -194,7 +194,6 @@ def plot_performance_metrics(performance_df):
 
     # Get unique values for processes and chunk sizes
     processes = sorted(performance_df["processes"].unique())
-    processes = [p for p in processes if p != 1]  # Remove sequential case
     chunk_sizes = sorted(performance_df["chunk_size"].unique())
 
     # Create a 2D array for the heatmap
@@ -259,8 +258,8 @@ if __name__ == "__main__":
     print("\nAnalyzing performance...")
     performance_df = analyze_performance(
         file_path,
-        chunk_sizes=[10000, 50000, 100000, 500000, 1000000],
-        process_counts=[2, 4, 8, 12, 16],
+        chunk_sizes=[10000, 50000, 100000, 500000, 1000000, 5000000],
+        process_counts=[1, 2, 4, 8, 12, 16, 24, 32, 48],
         # chunk_sizes=[10000, 100000, 1000000],
         # process_counts = [2, 8, 16]
     )

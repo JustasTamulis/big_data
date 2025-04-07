@@ -346,7 +346,7 @@ def process_file_in_chunks_with_pooling(
 
 if __name__ == "__main__":
     # Load and prepare data
-    # file_path = 'data/aisdk-test.csv'
+    # file_path = 'data/aisdk-small.csv'
     file_path = "data/aisdk-2025-02-09.csv"
     print("\nProcessing data in chunks...")
 
