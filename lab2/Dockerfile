@@ -1,24 +1,23 @@
 # Use an official Python runtime as a parent image
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
 # Copy the requirements file into the container at /app
-COPY requirements.txt .
+COPY requirements.in .
 
-# Install any needed packages specified in requirements.txt
+# Install any needed packages specified in requirements.in
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code into the container at /app
-COPY . .
+COPY ./app /app/app
 
-# Make port 80 available to the world outside this container (if needed for web apps, optional here)
-# EXPOSE 80 
+# Make port 8501 available to the world outside this container
+EXPOSE 8501
 
 # Define environment variable
 ENV NAME=World
 
-# Run plot_data.py when the container launches
-# Default command, can be overridden
-CMD ["python", "plot_data.py"]
+# Run dashboard.py when the container launches
+CMD ["streamlit", "run", "app/dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]

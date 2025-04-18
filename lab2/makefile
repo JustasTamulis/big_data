@@ -34,6 +34,9 @@ install: .state/pyvenv ## Install Python dependencies
 	mkdir -p .state
 	touch .state/pyvenv
 
+requirements: ## Update requirements.txt
+	pip-compile -o requirements.txt requirements.in
+
 ########################################################################################
 ## Docker
 
@@ -46,18 +49,11 @@ run: ## Run the Docker container and generate the plot
 	mkdir -p output
 	# Run the container
 	# mount current output folder to the /app/output folder
-	docker run --rm -v "./output:/app/output" lab2 python plot_data.py --output /app/output/docker_output_plot.png
+	docker run --rm -v "./output:/app/output" -p 8501:8501 $(IMAGE_NAME)
 
 cli: ## Run the Docker container interactively
 	# Run the container, mounting the current directory's output folder to the container's /app/output folder
-	docker run -it lab2:latest /bin/bash
+	docker run -it $(IMAGE_NAME):latest /bin/bash
 
 docker-clean: ## Remove the Docker image
-	docker rmi $(IMAGE_NAME):$(DOCKER_TAG) -f
-
-# Add docker targets to the main clean target if desired
-# clean: ## clean virtualenv and docker image
-# 	rm -rf .state output
-# 	pyenv virtualenv-delete --force ${VENV} || true
-# 	rm -f .python-version
-# 	docker rmi $(IMAGE_NAME):$(DOCKER_TAG) || true
+	docker rmi $(IMAGE_NAME) -f
