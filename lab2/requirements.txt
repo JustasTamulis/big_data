@@ -97,6 +97,8 @@ smmap==5.0.2
     # via gitdb
 streamlit==1.44.1
     # via -r requirements.in
+streamlit-keyup==0.2.0
+    # via user request
 tenacity==9.1.2
     # via streamlit
 toml==0.10.2
