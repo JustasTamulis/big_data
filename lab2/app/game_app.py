@@ -14,31 +14,89 @@ PLAYER_CHAR = '$'
 ENEMY_CHAR = 'T'
 WALL_CHAR = '@'
 EMPTY_CHAR = '.'
+DANGER_CHAR = '+'  # New character for danger zones
 HIGH_SCORE_FILE = "bestRez_streamlit.txt"
 IMAGE_DIR = "img"
-IMG_SIZE_PX = 50  # Reduced for tighter display
+IMG_SIZE_PX = 60  # Increased for bigger icons
+
+# CSS for more consistent grid spacing
+GRID_CSS = """
+<style>
+    div.row-widget.stHorizontal > div {
+        padding: 0 !important;
+        margin: 0 !important;
+        gap: 0 !important;
+    }
+    div.element-container {padding: 0 !important; margin: 0 !important;}
+    .stImage img {margin: 0 !important; padding: 0 !important;}
+    
+    /* Hide buttons visually while keeping them in DOM for keyboard controls */
+    .game-controls-container .stButton button {
+        opacity: 0.1;
+        transform: scale(0.5);
+        margin: -5px;
+        padding: 0;
+        font-size: 0.6em;
+        min-height: 0;
+        height: 20px !important;
+    }
+    
+    .game-controls-container .stButton button:hover {
+        opacity: 0.7;
+        transform: scale(0.7);
+    }
+</style>
+"""
 
 # --- Image Generation ---
 def generate_tile_images(img_dir=IMAGE_DIR, size=IMG_SIZE_PX):
     """Generates and saves simple tile images if they don't exist."""
     os.makedirs(img_dir, exist_ok=True)
     tiles = {
-        PLAYER_CHAR: ('blue', os.path.join(img_dir, 'player.png')),
-        ENEMY_CHAR: ('red', os.path.join(img_dir, 'enemy.png')),
-        WALL_CHAR: ('gray', os.path.join(img_dir, 'wall.png')),
-        EMPTY_CHAR: ('white', os.path.join(img_dir, 'empty.png'))
+        PLAYER_CHAR: ('#1E88E5', os.path.join(img_dir, 'player.png')),  # Distinct deep blue
+        ENEMY_CHAR: ('#D32F2F', os.path.join(img_dir, 'enemy.png')),    # Distinct deep red
+        WALL_CHAR: ('#424242', os.path.join(img_dir, 'wall.png')),      # Dark gray
+        EMPTY_CHAR: ('#F5F5F5', os.path.join(img_dir, 'empty.png')),    # Light gray
+        DANGER_CHAR: ('#FFCDD2', os.path.join(img_dir, 'empty_highlighted.png'))  # Light red for danger zones
     }
 
+    # Generate new tile images with more distinct colors and larger shapes
     for char, (color, path) in tiles.items():
-        if not os.path.exists(path):
-            fig, ax = plt.subplots(figsize=(1, 1))
-            rect = plt.Rectangle((0, 0), 3, 3, color=color)
+        # Always regenerate for updated styling
+        fig, ax = plt.subplots(figsize=(1, 1))
+        
+        if char == PLAYER_CHAR:
+            # Blue circle for player (larger)
+            circle = plt.Circle((0.5, 0.5), 0.4, color=color)
+            ax.add_patch(circle)
+        elif char == ENEMY_CHAR:
+            # Red X for enemy (larger)
+            ax.plot([0.2, 0.8], [0.2, 0.8], color=color, linewidth=6)
+            ax.plot([0.2, 0.8], [0.8, 0.2], color=color, linewidth=6)
+        elif char == WALL_CHAR:
+            # Gray solid square for wall
+            rect = plt.Rectangle((0.1, 0.1), 0.8, 0.8, color=color)
             ax.add_patch(rect)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.axis('off')
-            plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=size)
-            plt.close(fig)
+        elif char == DANGER_CHAR:
+            # Light red background with pattern for danger
+            rect = plt.Rectangle((0, 0), 1, 1, color=color)
+            ax.add_patch(rect)
+            # Add subtle pattern to indicate danger
+            for i in range(0, 10, 2):
+                ax.plot([i/10, (i+1)/10], [0, 1], color='#EF9A9A', alpha=0.5, linewidth=1)
+        else:
+            # Plain background for empty
+            rect = plt.Rectangle((0, 0), 1, 1, color=color)
+            ax.add_patch(rect)
+            
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_aspect('equal')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.axis('off')
+        plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=size)
+        plt.close(fig)
     loaded_images = {char: Image.open(path) for char, (_, path) in tiles.items()}
     return loaded_images
 
@@ -46,20 +104,72 @@ def generate_tile_images(img_dir=IMAGE_DIR, size=IMG_SIZE_PX):
 def load_images():
     return generate_tile_images()
 
+# --- Danger Zone Calculation ---
+def calculate_danger_zones(game_map, enemy_pos, max_distance=3):
+    """Calculates areas within specified distance of the enemy"""
+    rows, cols = game_map.shape
+    e_r, e_c = enemy_pos
+    danger_positions = set()
+    
+    # Use BFS to find all cells within max_distance moves
+    queue = deque([(e_r, e_c, 0)])  # (row, col, distance)
+    visited = set([(e_r, e_c)])
+    
+    while queue:
+        r, c, dist = queue.popleft()
+        
+        if 0 < dist <= max_distance:
+            danger_positions.add((r, c))
+            
+        if dist < max_distance:
+            for dr, dc in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                nr, nc = r + dr, c + dc
+                
+                if (0 <= nr < rows and 0 <= nc < cols and 
+                    game_map[nr, nc] != WALL_CHAR and 
+                    (nr, nc) not in visited):
+                    visited.add((nr, nc))
+                    queue.append((nr, nc, dist + 1))
+    
+    return danger_positions
+
+def apply_danger_overlay(game_map, enemy_pos):
+    """Applies the danger zone overlay to a copy of the game map"""
+    display_map = game_map.copy()
+    danger_positions = calculate_danger_zones(game_map, enemy_pos)
+    
+    # Apply the danger marking to empty tiles only
+    for r, c in danger_positions:
+        if display_map[r, c] == EMPTY_CHAR:
+            display_map[r, c] = DANGER_CHAR
+            
+    return display_map
+
 # --- Helper Functions ---
 def display_map(game_map, images):
     """Displays the game map using images in a more compact grid."""
     rows, cols = game_map.shape
+    
+    # Apply danger zone overlay if enemy is present
+    enemy_pos = find_char(game_map, ENEMY_CHAR)
+    if enemy_pos[0] is not None:
+        display_map = apply_danger_overlay(game_map, enemy_pos)
+    else:
+        display_map = game_map
+    
+    # Add custom CSS for grid spacing
+    st.markdown(GRID_CSS, unsafe_allow_html=True)
+    
     # Use container with custom CSS for tight spacing
     with st.container():
         for r in range(rows):
-            # Create columns with minimal gap
+            # Create columns with equal spacing
             row_cols = st.columns(cols, gap="small")
             for c in range(cols):
-                char = game_map[r, c]
+                char = display_map[r, c]
                 if char in images:
                     with row_cols[c]:
-                        # Use a smaller image size and remove padding
+                        # Use a consistent image size and remove padding
                         st.image(images[char], width=IMG_SIZE_PX, use_container_width=False)
 
 # Function to load the JavaScript for keyboard controls
@@ -211,25 +321,59 @@ def place_wall(dr, dc):
         st.session_state.message = "Cannot place wall there."
 
 def enemy_turn():
-    """Enemy turn logic - UPDATED: Player loses if enemy can't reach them"""
+    """Enemy turn logic with visual path indicators"""
     if st.session_state.game_over:
         return
 
     st.session_state.message = "Enemy's turn..."
     e_r, e_c = st.session_state.enemy_pos
     p_r, p_c = st.session_state.player_pos
-
-    for _ in range(st.session_state.enemy_moves_per_turn):
+    
+    # Calculate all enemy moves at once
+    path = []
+    current_pos = (e_r, e_c)
+    
+    for move_num in range(st.session_state.enemy_moves_per_turn):
         if st.session_state.game_over:
             break
-
+            
         map_copy = st.session_state.game_map.copy()
-        next_pos = bfs_find_path(map_copy, (e_r, e_c), (p_r, p_c))
-
+        next_pos = bfs_find_path(map_copy, current_pos, (p_r, p_c))
+        
         if next_pos:
             ne_r, ne_c = next_pos
-            if st.session_state.game_map[ne_r, ne_c] == PLAYER_CHAR:
+            path.append((ne_r, ne_c))
+            
+            # Check if player will be caught
+            if map_copy[ne_r, ne_c] == PLAYER_CHAR:
+                st.session_state.game_over = True
+                break
+            
+            # Update for next iteration
+            current_pos = (ne_r, ne_c)
+        else:
+            # No path found = player wins
+            st.session_state.message = f"Game Over! Enemy cannot reach you. Final Score: {st.session_state.score}"
+            st.session_state.game_over = True
+            if st.session_state.score > st.session_state.high_score:
+                save_high_score(st.session_state.score)
+                st.session_state.high_score = st.session_state.score
+            break
+    
+    # Now apply all moves at once with a visualization of the path
+    if path:
+        # Apply all moves
+        for i, (ne_r, ne_c) in enumerate(path):
+            # Clear the previous enemy position
+            if i == 0:
                 st.session_state.game_map[e_r, e_c] = EMPTY_CHAR
+            else:
+                prev_r, prev_c = path[i-1]
+                st.session_state.game_map[prev_r, prev_c] = EMPTY_CHAR
+                
+            # Place enemy at new position
+            if st.session_state.game_map[ne_r, ne_c] == PLAYER_CHAR:
+                # Player caught - game over
                 st.session_state.game_map[ne_r, ne_c] = ENEMY_CHAR
                 st.session_state.enemy_pos = (ne_r, ne_c)
                 st.session_state.message = f"Game Over! Enemy caught you. Final Score: {st.session_state.score}"
@@ -238,24 +382,19 @@ def enemy_turn():
                     save_high_score(st.session_state.score)
                     st.session_state.high_score = st.session_state.score
                 break
-            elif st.session_state.game_map[ne_r, ne_c] == EMPTY_CHAR:
-                st.session_state.game_map[e_r, e_c] = EMPTY_CHAR
+            else:
+                # Regular move
                 st.session_state.game_map[ne_r, ne_c] = ENEMY_CHAR
-                st.session_state.enemy_pos = (ne_r, ne_c)
-                e_r, e_c = ne_r, ne_c
-                st.session_state.message = "Enemy moved."
-        else:
-            # CHANGED: No path found = player loses
-            st.session_state.message = f"Game Over! Enemy cannot reach you. Final Score: {st.session_state.score}"
-            st.session_state.game_over = True
-            if st.session_state.score > st.session_state.high_score:
-                save_high_score(st.session_state.score)
-                st.session_state.high_score = st.session_state.score
-            break
-
-    if not st.session_state.game_over:
+                
+        # Update enemy position to final position
+        if path and not st.session_state.game_over:
+            st.session_state.enemy_pos = path[-1]
+            st.session_state.message = f"Enemy moved {len(path)} times. Your turn!"
+            st.session_state.player_moves_left = st.session_state.player_moves_per_turn
+    else:
+        # No moves were made
         st.session_state.player_moves_left = st.session_state.player_moves_per_turn
-        st.session_state.message += " Your turn!"
+        st.session_state.message = "Enemy couldn't move. Your turn!"
 
 def check_turn_end():
     """Check if the player's turn should end"""
@@ -327,7 +466,9 @@ if not st.session_state.game_over:
         *   **O:** Skip remaining moves / End Turn
         """)
     
-        # Create rows for button layout
+        # Add a container div with the special class for button styling
+        st.markdown('<div class="game-controls-container">', unsafe_allow_html=True)
+        
         # Movement buttons
         move_col1, move_col2, move_col3 = st.columns(3)
         with move_col1:
@@ -366,6 +507,9 @@ if not st.session_state.game_over:
         # Skip turn button
         st.markdown("---")
         st.button("Skip Turn", on_click=skip_turn)
+        
+        # Close the container div
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Load the JavaScript keyboard hack
     components.html(load_js_hack(), height=0, width=0)
