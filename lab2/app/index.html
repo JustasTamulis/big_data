@@ -1,0 +1,102 @@
+<script>
+    const streamlitDoc = window.parent.document;
+
+    console.log("Streamlit inner HTML loaded");
+
+    // Define all buttons
+    var up_button = null;
+    var down_button = null;
+    var left_button = null;
+    var right_button = null;
+    var wall_up_button = null;
+    var wall_down_button = null;
+    var wall_left_button = null;
+    var wall_right_button = null;
+    var skip_button = null;
+    var shrink = null;
+    var allFound = false;
+    
+    // Function to find buttons with retry mechanism
+    function findButtons() {
+        console.log("Finding buttons...");
+        
+        // Find all buttons for movement and wall placement
+        const buttons = Array.from(streamlitDoc.querySelectorAll('.stButton > button'));
+        console.log("Total buttons found:", buttons.length);
+        
+        // Movement buttons
+        up_button = buttons.find(el => el.innerText === 'Up');
+        down_button = buttons.find(el => el.innerText === 'Down');
+        left_button = buttons.find(el => el.innerText === 'Left');
+        right_button = buttons.find(el => el.innerText === 'Right');
+
+        console.log(up_button)
+        console.log(down_button)
+        
+        // Wall placement buttons
+        wall_up_button = buttons.find(el => el.innerText === 'Wall Up');
+        wall_down_button = buttons.find(el => el.innerText === 'Wall Down');
+        wall_left_button = buttons.find(el => el.innerText === 'Wall Left');
+        wall_right_button = buttons.find(el => el.innerText === 'Wall Right');
+        
+        // Skip turn button
+        skip_button = buttons.find(el => el.innerText === 'Skip Turn');
+
+        // Skip turn button
+        shrink = buttons.find(el => el.innerText === 'Shrink');
+        
+        // Check if we found all buttons
+        allFound = [up_button, down_button, left_button, right_button, 
+                          wall_up_button, wall_down_button, wall_left_button, 
+                          wall_right_button, skip_button].every(btn => btn);
+        
+        if (!allFound) {
+            console.log("Not all buttons found, retrying in 2000ms...");
+            setTimeout(findButtons, 2000);
+            return;
+        }
+
+        if (allFound) {
+            console.log("All buttons found successfully!");
+            console.log("Closing expander...");
+            shrink.click();
+            console.log("Expander closed!");
+        }
+        
+        // Add key event listener once all buttons are available
+        streamlitDoc.addEventListener('keydown', function(e) {
+            // Movement with arrow keys
+            if (e.key === 'ArrowUp') {
+                up_button.click();
+            } else if (e.key === 'ArrowDown') {
+                down_button.click();
+            } else if (e.key === 'ArrowLeft') {
+                left_button.click();
+            } else if (e.key === 'ArrowRight') {
+                right_button.click();
+            }
+            // Wall placement with WASD
+            else if (e.key.toLowerCase() === 'w') {
+                wall_up_button.click();
+            } else if (e.key.toLowerCase() === 'a') {
+                wall_left_button.click();
+            } else if (e.key.toLowerCase() === 's') {
+                wall_down_button.click();
+            } else if (e.key.toLowerCase() === 'd') {
+                wall_right_button.click();
+            }
+            // Skip turn with O
+            else if (e.key.toLowerCase() === 'o') {
+                skip_button.click();
+            }
+        });
+    }
+
+    // Add a small delay before attempting to find buttons to ensure the DOM is fully loaded
+    setTimeout(findButtons, 500);
+
+    // Handle Streamlit reconnects - reattach event handlers when page refreshes
+    // if (window.parent.streamlitReconnect) {
+    //     window.parent.streamlitReconnect.addEventListener(findButtons);
+    // }
+</script>
