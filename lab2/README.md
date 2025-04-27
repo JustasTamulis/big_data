@@ -49,6 +49,8 @@ Pull an image from Docker Hub:
 docker pull justast/lab2
 ```
 
+The docker image is public.
+
 ## Heroku
 
 We can use the containerized app to deploy to Heroku:
