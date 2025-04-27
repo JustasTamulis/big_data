@@ -57,3 +57,7 @@ cli: ## Run the Docker container interactively
 
 docker-clean: ## Remove the Docker image
 	docker rmi $(IMAGE_NAME) -f
+
+push: ## Push the Docker image to Docker Hub
+	docker tag $(IMAGE_NAME):latest justast/$(IMAGE_NAME)
+	docker push justast/$(IMAGE_NAME)
