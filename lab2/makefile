@@ -43,13 +43,13 @@ requirements: ## Update requirements.txt
 IMAGE_NAME=lab2
 
 build: ## Build the Docker image
-	docker build -t $(IMAGE_NAME) .
+	docker build --provenance false -t $(IMAGE_NAME) .
 
 run: ## Run the Docker container and generate the plot
 	mkdir -p output
 	# Run the container
 	# mount current output folder to the /app/output folder
-	docker run --rm -v "./output:/app/output" -p 8501:8501 $(IMAGE_NAME)
+	docker run --rm -v "./output:/app/output" -p 8501:8501 -e PORT=8501 $(IMAGE_NAME)
 
 cli: ## Run the Docker container interactively
 	# Run the container, mounting the current directory's output folder to the container's /app/output folder
@@ -61,3 +61,35 @@ docker-clean: ## Remove the Docker image
 push: ## Push the Docker image to Docker Hub
 	docker tag $(IMAGE_NAME):latest justast/$(IMAGE_NAME)
 	docker push justast/$(IMAGE_NAME)
+
+	
+########################################################################################
+## Heroku
+
+HEROKU_APP_NAME=fierce-beyond-09902
+
+heroku-build: build
+	# tag the image with the Heroku registry
+	docker tag $(IMAGE_NAME) registry.heroku.com/$(HEROKU_APP_NAME)/web
+
+	# push the image to Heroku
+	docker push registry.heroku.com/$(HEROKU_APP_NAME)/web
+
+	# release the image
+	heroku container:release web -a $(HEROKU_APP_NAME)
+
+heroku-pull: ## Pull the image from docker hub and deploy to Heroku
+	# pull the image from Docker Hub
+	docker pull justast/$(IMAGE_NAME)
+
+	# tag the image with the Heroku registry
+	docker tag justast/$(IMAGE_NAME) registry.heroku.com/$(HEROKU_APP_NAME)/web
+
+	# push the image to Heroku
+	docker push registry.heroku.com/$(HEROKU_APP_NAME)/web
+
+	# release the image
+	heroku container:release web -a $(HEROKU_APP_NAME)
+
+open: ## Open the Heroku app in the browser
+	heroku open -a $(HEROKU_APP_NAME)
