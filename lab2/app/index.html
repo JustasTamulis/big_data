@@ -13,7 +13,6 @@
     var wall_left_button = null;
     var wall_right_button = null;
     var skip_button = null;
-    var shrink = null;
     var allFound = false;
     
     // Function to find buttons with retry mechanism
@@ -42,8 +41,6 @@
         // Skip turn button
         skip_button = buttons.find(el => el.innerText === 'Skip Turn');
 
-        // Skip turn button
-        shrink = buttons.find(el => el.innerText === 'Shrink');
         
         // Check if we found all buttons
         allFound = [up_button, down_button, left_button, right_button, 
@@ -56,38 +53,47 @@
             return;
         }
 
-        if (allFound) {
-            console.log("All buttons found successfully!");
-            console.log("Closing expander...");
-            shrink.click();
-            console.log("Expander closed!");
-        }
         
         // Add key event listener once all buttons are available
         streamlitDoc.addEventListener('keydown', function(e) {
+            let buttonClicked = false;
             // Movement with arrow keys
             if (e.key === 'ArrowUp') {
                 up_button.click();
+                buttonClicked = true;
             } else if (e.key === 'ArrowDown') {
                 down_button.click();
+                buttonClicked = true;
             } else if (e.key === 'ArrowLeft') {
                 left_button.click();
+                buttonClicked = true;
             } else if (e.key === 'ArrowRight') {
                 right_button.click();
+                buttonClicked = true;
             }
             // Wall placement with WASD
             else if (e.key.toLowerCase() === 'w') {
                 wall_up_button.click();
+                buttonClicked = true;
             } else if (e.key.toLowerCase() === 'a') {
                 wall_left_button.click();
+                buttonClicked = true;
             } else if (e.key.toLowerCase() === 's') {
                 wall_down_button.click();
+                buttonClicked = true;
             } else if (e.key.toLowerCase() === 'd') {
                 wall_right_button.click();
+                buttonClicked = true;
             }
             // Skip turn with O
             else if (e.key.toLowerCase() === 'o') {
                 skip_button.click();
+                buttonClicked = true;
+            }
+
+            // Prevent default browser action (like scrolling) if a game key was pressed
+            if (buttonClicked) {
+                e.preventDefault();
             }
         });
     }
