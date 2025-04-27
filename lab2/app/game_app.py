@@ -326,57 +326,53 @@ if not st.session_state.game_over:
         *   **W, A, S, D:** Place Wall (gray) adjacent
         *   **O:** Skip remaining moves / End Turn
         """)
-        
-        with st.expander("Buttons", expanded=st.session_state["expanded"], icon=None):
-        
-            # Create rows for button layout
-            # Movement buttons
-            move_col1, move_col2, move_col3 = st.columns(3)
-            with move_col1:
-                st.write("")  # Empty space
-            with move_col2:
-                st.button("Up", on_click=move_player, args=(-1, 0))
-            with move_col3:
-                st.write("")  # Empty space
-                
-            move_col1, move_col2, move_col3 = st.columns(3)
-            with move_col1:
-                st.button("Left", on_click=move_player, args=(0, -1))
-            with move_col2:
-                st.button("Down", on_click=move_player, args=(1, 0))
-            with move_col3:
-                st.button("Right", on_click=move_player, args=(0, 1))
+    
+        # Create rows for button layout
+        # Movement buttons
+        move_col1, move_col2, move_col3 = st.columns(3)
+        with move_col1:
+            st.write("")  # Empty space
+        with move_col2:
+            st.button("Up", on_click=move_player, args=(-1, 0))
+        with move_col3:
+            st.write("")  # Empty space
             
-            # Wall placement buttons
-            st.markdown("---")
-            wall_col1, wall_col2, wall_col3 = st.columns(3)
-            with wall_col1:
-                st.write("")  # Empty space
-            with wall_col2:
-                st.button("Wall Up", on_click=place_wall, args=(-1, 0))
-            with wall_col3:
-                st.write("")  # Empty space
-                
-            wall_col1, wall_col2, wall_col3 = st.columns(3)
-            with wall_col1:
-                st.button("Wall Left", on_click=place_wall, args=(0, -1))
-            with wall_col2:
-                st.button("Wall Down", on_click=place_wall, args=(1, 0))
-            with wall_col3:
-                st.button("Wall Right", on_click=place_wall, args=(0, 1))
+        move_col1, move_col2, move_col3 = st.columns(3)
+        with move_col1:
+            st.button("Left", on_click=move_player, args=(0, -1))
+        with move_col2:
+            st.button("Down", on_click=move_player, args=(1, 0))
+        with move_col3:
+            st.button("Right", on_click=move_player, args=(0, 1))
+        
+        # Wall placement buttons
+        st.markdown("---")
+        wall_col1, wall_col2, wall_col3 = st.columns(3)
+        with wall_col1:
+            st.write("")  # Empty space
+        with wall_col2:
+            st.button("Wall Up", on_click=place_wall, args=(-1, 0))
+        with wall_col3:
+            st.write("")  # Empty space
+            
+        wall_col1, wall_col2, wall_col3 = st.columns(3)
+        with wall_col1:
+            st.button("Wall Left", on_click=place_wall, args=(0, -1))
+        with wall_col2:
+            st.button("Wall Down", on_click=place_wall, args=(1, 0))
+        with wall_col3:
+            st.button("Wall Right", on_click=place_wall, args=(0, 1))
 
-            st.button("Shrink", on_click=shrink)
-            
-            # Skip turn button
-            st.markdown("---")
-            st.button("Skip Turn", on_click=skip_turn)
+        # Skip turn button
+        st.markdown("---")
+        st.button("Skip Turn", on_click=skip_turn)
 
     # Load the JavaScript keyboard hack
     components.html(load_js_hack(), height=0, width=0)
 
 else:
     # Game over screen
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([3, 2])
     
     with col1:
         display_map(st.session_state.game_map, st.session_state.images)
