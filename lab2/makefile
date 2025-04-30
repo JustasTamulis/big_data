@@ -45,14 +45,10 @@ IMAGE_NAME=lab2
 build: ## Build the Docker image
 	docker build --provenance false -t $(IMAGE_NAME) .
 
-run: ## Run the Docker container and generate the plot
-	mkdir -p output
-	# Run the container
-	# mount current output folder to the /app/output folder
-	docker run --rm -v "./output:/app/output" -p 8501:8501 -e PORT=8501 $(IMAGE_NAME)
+run: ## Run the Docker container
+	docker run --rm -p 8501:8501 -e PORT=8501 $(IMAGE_NAME)
 
 cli: ## Run the Docker container interactively
-	# Run the container, mounting the current directory's output folder to the container's /app/output folder
 	docker run -it $(IMAGE_NAME):latest /bin/bash
 
 docker-clean: ## Remove the Docker image

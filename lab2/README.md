@@ -11,9 +11,9 @@ pip-compile --output-file=requirements.txt requirements.in
 
 ## docker overview
 
-images are snapshots containing code and dependencies needed to run an application.
-containers are running instances of Docker images that execute in an isolated environment.
-dockerfiles are recipes that define how to build a Docker image with instructions for setup.
+- Images are snapshots containing code and dependencies needed to run an application.
+- Containers are running instances of Docker images that execute in an isolated environment.
+- Dockerfiles are recipes that define how to build a Docker image with instructions for setup.
 
 ## dockerfile
 
@@ -49,7 +49,9 @@ Pull an image from Docker Hub:
 docker pull justast/lab2
 ```
 
-The docker image is public.
+The docker image is public. View it in docker hub website: https://hub.docker.com/r/justast/lab2
+
+
 
 ## Heroku
 
@@ -66,3 +68,7 @@ heroku container:release web -a fierce-beyond-09902
 ```
 
 app: https://fierce-beyond-09902-12b01d0ae0ff.herokuapp.com/
+
+## Problems encountered
+
+Docker push error "405 Method Not Allowed" when deploying to heroku. Resolved by building an image with "--provenance false" flag.
