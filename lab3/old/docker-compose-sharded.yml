@@ -1,0 +1,68 @@
+version: '3'
+
+services:
+  # Config Servers
+  config1:
+    image: mongo:latest
+    command: mongod --configsvr --replSet configrs --port 27017
+    volumes:
+      - ./data/config1:/data/db
+    ports:
+      - "27119:27017"
+
+  config2:
+    image: mongo:latest
+    command: mongod --configsvr --replSet configrs --port 27017
+    volumes:
+      - ./data/config2:/data/db
+
+  config3:
+    image: mongo:latest
+    command: mongod --configsvr --replSet configrs --port 27017
+    volumes:
+      - ./data/config3:/data/db
+
+  # Shard 1
+  shard1a:
+    image: mongo:latest
+    command: mongod --shardsvr --replSet shard1rs --port 27017
+    volumes:
+      - ./data/shard1a:/data/db
+    ports:
+      - "27117:27017"
+
+  shard1b:
+    image: mongo:latest
+    command: mongod --shardsvr --replSet shard1rs --port 27017
+    volumes:
+      - ./data/shard1b:/data/db
+
+  # Shard 2
+  shard2a:
+    image: mongo:latest
+    command: mongod --shardsvr --replSet shard2rs --port 27017
+    volumes:
+      - ./data/shard2a:/data/db
+    ports:
+      - "27118:27017"
+
+  shard2b:
+    image: mongo:latest
+    command: mongod --shardsvr --replSet shard2rs --port 27017
+    volumes:
+      - ./data/shard2b:/data/db
+
+  # Router
+  router:
+    image: mongo:latest
+    command: mongos --configdb configrs/config1:27017,config2:27017,config3:27017 --port 27017
+    ports:
+      - "27017:27017"
+    depends_on:
+      - config1
+      - config2
+      - config3
+      - shard1a
+      - shard1b
+      - shard2a
+      - shard2b

@@ -1,0 +1,32 @@
+services:
+  mongo1:
+    image: mongo:latest
+    container_name: mongo1
+    command: mongod --replSet myReplicaSet --bind_ip localhost,mongo1 --port 27017
+    ports:
+      - "27017:27017"
+    networks:
+      - mynet
+
+  mongo2:
+    image: mongo:latest
+    container_name: mongo2
+    command: mongod --replSet myReplicaSet --bind_ip localhost,mongo2 --port 27017
+    ports:
+      - "27018:27017"
+    networks:
+      - mynet
+
+  mongo3:
+    image: mongo:latest
+    container_name: mongo3
+    command: mongod --replSet myReplicaSet --bind_ip localhost,mongo3 --port 27017
+    ports:
+      - "27019:27017"
+    networks:
+      - mynet
+
+networks:
+  mynet: # This is an alias used by services within this compose file
+    external: true
+    name: mynet # This must match DOCKER_NETWORK_NAME in the Makefile
