@@ -10,3 +10,7 @@ lab2/output/*
 lab2/bestRez_streamlit.txt
 
 lab3/data/*
+
+lab4/data/*
+lab4/artifacts/*
+lab4/.python-version
