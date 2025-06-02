@@ -1,16 +1,16 @@
 __pycache__/
 .state
 
-lab1/data/*
-lab1/output/*
+lab1_parallelization/data/*
+lab1_parallelization/output/*
 
-lab2/.python-version
-lab2/example/*
-lab2/output/*
-lab2/bestRez_streamlit.txt
+lab2_docker/.python-version
+lab2_docker/example/*
+lab2_docker/output/*
+lab2_docker/bestRez_streamlit.txt
 
-lab3/data/*
+lab3_mongo_db/data/*
 
-lab4/data/*
-lab4/artifacts/*
-lab4/.python-version
+lab4_longest_route/data/*
+lab4_longest_route/artifacts/*
+lab4_longest_route/.python-version
