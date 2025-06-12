@@ -21,8 +21,8 @@
     - calculate the actual duration (time end - time start)
 4. calculate the shortest routes' durations
     - go through all trips
-    - save the duration (from start_id, to end_id), reuse it (just 2d matrix)
-    - append the shortest durations 
+    - save the duration (from start_id, to end_id), reuse it (lookup table)
+    - append the shortest durations
 5. filter 
     - remove routes which took much longer than the shortest possible duration (20% longer)
 6. check stats
