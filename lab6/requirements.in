@@ -1,0 +1,6 @@
+osmnx
+numpy
+matplotlib
+pandas
+folium
+scikit-learn
