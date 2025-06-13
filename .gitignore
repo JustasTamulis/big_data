@@ -19,3 +19,8 @@ lab6/cache/*
 lab6/bike_rent/*
 lab6/.python-version
 lab6/all_public_percentile_bbox.graphml
+
+lab6_bike_rental_fast_trips/cache/*
+lab6_bike_rental_fast_trips/bike_rent/*
+lab6_bike_rental_fast_trips/.python-version
+lab6_bike_rental_fast_trips/all_public_percentile_bbox.graphml
