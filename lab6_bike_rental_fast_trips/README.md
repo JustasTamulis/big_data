@@ -5,6 +5,8 @@ This project analyzes bike sharing data to identify fast point-to-point trips by
 
 **Main notebook:** `multiwork.ipynb` - Contains the complete analysis pipeline with parallel processing implementation.
 
+More code (data exploration, function crafting) can be found here: https://github.com/JustasTamulis/big_data/tree/master/lab6_bike_rental_fast_trips
+
 ## Objectives
 - Detection of fast point-to-point bike trips by comparing actual and possible shortest route durations
 - Comparison of bike type and membership distributions between fast and regular trips
