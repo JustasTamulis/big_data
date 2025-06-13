@@ -14,3 +14,8 @@ lab3_mongo_db/data/*
 lab4_longest_route/data/*
 lab4_longest_route/artifacts/*
 lab4_longest_route/.python-version
+
+lab6/cache/*
+lab6/bike_rent/*
+lab6/.python-version
+lab6/all_public_percentile_bbox.graphml
